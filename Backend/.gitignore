@@ -1,0 +1,14 @@
+# Ignore input and output folders
+input/
+output/
+
+# Ignore temporary files
+*.pdf
+*.json
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore environment files
+.env

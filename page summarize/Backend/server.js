@@ -42,7 +42,7 @@ app.post("/ask", async (req, res) => {
   try {
     const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
     const prompt = `
-You are a helpful assistant. Answer the following question **only** using the provided page content.
+You are a helpful assistant. Answer the following question using the provided page content breifly.
 If the answer is not in the content, say "I couldn't find that in this page."
 
 Page Content:

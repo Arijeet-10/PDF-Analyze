@@ -12,6 +12,7 @@ import {
   ChevronDown,
   PlusCircle,
   X,
+  BookOpen,
 } from "lucide-react";
 
 /**
@@ -51,7 +52,7 @@ const HeadingExtraction = () => {
   const adobeApiRef = useRef(null);
 
   // IMPORTANT: Replace with your actual Adobe PDF Embed API Client ID
-  const ADOBE_CLIENT_ID = "628c0718047f4a0eaaccc8a09c8e3130";
+  const ADOBE_CLIENT_ID = "628c0718047f4a0eaaccc8a09c8e3130"; // Using a demo key
 
   // Effect to load the Adobe PDF Embed API script
   useEffect(() => {
@@ -63,7 +64,8 @@ const HeadingExtraction = () => {
       const script = document.createElement("script");
       script.src = "https://documentservices.adobe.com/view-sdk/viewer.js";
       script.onload = () => setIsAdobeLoaded(true);
-      script.onerror = () => console.error("Failed to load Adobe PDF Embed API");
+      script.onerror = () =>
+        console.error("Failed to load Adobe PDF Embed API");
       document.head.appendChild(script);
     };
     loadAdobeAPI();
@@ -113,25 +115,27 @@ const HeadingExtraction = () => {
         },
         {
           embedMode: "SIZED_CONTAINER",
-          showAnnotationTools: false, // Set to true to allow user annotations
+          showAnnotationTools: false,
           showLeftHandPanel: false,
           showDownloadPDF: true,
-          showPrintPDF: false,
+          showPrintPDF: true,
           defaultViewMode: "FIT_PAGE",
         }
       );
 
-      previewFilePromise.then((adobeViewer) => {
-        // Store the viewer instance in the ref for access to its APIs
-        adobeApiRef.current = adobeViewer;
-        adobeViewer.getAPIs().then((apis) => {
-          apis.gotoLocation(targetPage);
-        });
-      }).catch(e => console.error("Error during PDF preview:", e));
-
+      previewFilePromise
+        .then((adobeViewer) => {
+          adobeApiRef.current = adobeViewer; // Store the viewer instance
+          adobeViewer.getAPIs().then((apis) => {
+            apis.gotoLocation(targetPage);
+          });
+        })
+        .catch((e) => console.error("Error during PDF preview:", e));
     } catch (error) {
       console.error("Error initializing Adobe PDF viewer:", error);
-      setMessage("Could not display PDF. Ensure the Adobe Client ID is correct and the domain is registered.");
+      setMessage(
+        "Could not display PDF. Ensure the Adobe Client ID is correct and the domain is registered."
+      );
     }
   };
 
@@ -139,10 +143,8 @@ const HeadingExtraction = () => {
   useEffect(() => {
     if (selectedPdf && isAdobeLoaded) {
       initializeAdobeViewer(selectedPdf.file, selectedPdf.targetPage);
-    }
-
-    if (!selectedPdf && pdfViewerRef.current) {
-      pdfViewerRef.current.innerHTML = "";
+    } else if (!selectedPdf && pdfViewerRef.current) {
+      pdfViewerRef.current.innerHTML = ""; // Clear the viewer content
       adobeApiRef.current = null; // Clear the API ref
     }
   }, [selectedPdf, isAdobeLoaded]);
@@ -189,7 +191,9 @@ const HeadingExtraction = () => {
     if (urlToRevoke) {
       URL.revokeObjectURL(urlToRevoke);
     }
-    setFiles((prevFiles) => prevFiles.filter((file) => file.name !== fileNameToRemove));
+    setFiles((prevFiles) =>
+      prevFiles.filter((file) => file.name !== fileNameToRemove)
+    );
     setPdfUrls((prevUrls) => {
       const newUrls = { ...prevUrls };
       delete newUrls[fileNameToRemove];
@@ -210,30 +214,33 @@ const HeadingExtraction = () => {
       console.error("Could not find file:", doc.filename);
       return;
     }
-
-    // Set the selected PDF, which triggers the viewer to open
+  
+    const isSameDoc = selectedPdf?.file.name === file.name;
+    // Set the selected PDF, which triggers the viewer to open or update
     setSelectedPdf({ file, targetPage: heading.page + 1 });
-
-    // Use a timeout to ensure the viewer API is ready after the component re-renders
+  
+    // Use a small delay to ensure the viewer API is ready, especially when loading a new doc
     setTimeout(async () => {
       if (!adobeApiRef.current) {
         console.error("Adobe Viewer API is not available.");
         return;
       }
-
+  
       try {
         const apis = await adobeApiRef.current.getAPIs();
-
+  
         // 1. Remove the previous highlight if one exists
         if (highlightAnnotationId) {
           await apis.removeAnnotations([highlightAnnotationId]);
           setHighlightAnnotationId(null);
         }
-
+  
         // 2. Search for the heading text to get its location (quads)
         const searchResults = await apis.search(heading.text);
+        
+        // Find the specific search result for the correct page
         const resultOnPage = searchResults.find(r => r.page_num === heading.page + 1);
-
+  
         if (resultOnPage && resultOnPage.quads.length > 0) {
           // 3. Add a new highlight annotation
           const [newAnnotation] = await apis.addAnnotations([
@@ -241,20 +248,26 @@ const HeadingExtraction = () => {
               type: "HIGHLIGHT",
               page: heading.page + 1,
               quadPoints: resultOnPage.quads[0], // Use the first bounding box
-              color: [255, 255, 0], // Yellow
+              color: [255, 215, 0], // A nice gold color
               opacity: 0.5,
             },
           ]);
           // 4. Store the new annotation's ID
           setHighlightAnnotationId(newAnnotation.id);
+          // 5. Go to the annotation location
+          apis.gotoLocation(heading.page + 1, resultOnPage.quads[0][0], resultOnPage.quads[0][1]);
         } else {
-          console.warn(`Could not find text "${heading.text}" on page ${heading.page + 1} to highlight.`);
-          apis.gotoLocation(heading.page + 1); // Fallback to just navigating
+          console.warn(
+            `Could not find text "${heading.text}" on page ${
+              heading.page + 1
+            } to highlight.`
+          );
+          apis.gotoLocation(heading.page + 1); // Fallback to just navigating to the page
         }
       } catch (error) {
         console.error("Error during text highlighting:", error);
       }
-    }, 500); // 500ms delay to allow viewer to initialize
+    }, isSameDoc ? 100 : 500); // Shorter delay if doc is already open
   };
 
   /**
@@ -307,7 +320,7 @@ const HeadingExtraction = () => {
       return;
     }
     const formData = new FormData();
-    files.forEach(file => formData.append("files", file));
+    files.forEach((file) => formData.append("files", file));
 
     try {
       setIsLoading(true);
@@ -321,7 +334,9 @@ const HeadingExtraction = () => {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(
+          errorData.detail || `HTTP error! status: ${response.status}`
+        );
       }
 
       const data = await response.json();
@@ -357,17 +372,6 @@ const HeadingExtraction = () => {
   };
 
   /**
-   * Returns a status icon based on the current application state.
-   * @returns {JSX.Element|null}
-   */
-  const getStatusIcon = () => {
-    if (isLoading) return <Loader2 className="w-5 h-5 animate-spin text-blue-500" />;
-    if (results.length > 0) return <CheckCircle className="w-5 h-5 text-green-500" />;
-    if (message && !isLoading && results.length === 0) return <AlertCircle className="w-5 h-5 text-red-500" />;
-    return null;
-  };
-
-  /**
    * Calculates the indentation level for headings based on their level (H1, H2, etc.).
    * @param {string} levelStr - The heading level string (e.g., "H2").
    * @returns {string} The CSS margin-left value.
@@ -375,7 +379,7 @@ const HeadingExtraction = () => {
   const getIndentLevel = (levelStr) => {
     if (typeof levelStr !== "string") return "0px";
     const level = parseInt(levelStr.replace("H", ""), 10);
-    return isNaN(level) || level <= 1 ? "0px" : `${(level - 1) * 24}px`;
+    return isNaN(level) || level <= 1 ? "0px" : `${(level - 1) * 20}px`;
   };
 
   /**
@@ -385,48 +389,48 @@ const HeadingExtraction = () => {
     setCurrentPage("upload");
     setSelectedPdf(null);
     setResults([]);
-    setFiles([]);
+    // Revoke old URLs before clearing files
     Object.values(pdfUrls).forEach((url) => URL.revokeObjectURL(url));
+    setFiles([]);
     setPdfUrls({});
     setMessage("");
     setHighlightAnnotationId(null);
   };
+  
+  /**
+   * Clears all selected files from the list.
+   */
+  const clearAllFiles = () => {
+      Object.values(pdfUrls).forEach(url => URL.revokeObjectURL(url));
+      setFiles([]);
+      setPdfUrls({});
+  }
 
   /**
    * The component for the initial file upload page.
    */
   const UploadPage = () => (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200">
-        <div className="max-w-6xl mx-auto px-6 py-4">
-          <div className="flex items-center space-x-3">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <FileText className="w-5 h-5 text-white" />
-            </div>
-            <div>
-              <h1 className="text-xl font-semibold text-gray-900">PDF Document Analyzer</h1>
-              <p className="text-sm text-gray-500">Extract headings and document structure</p>
-            </div>
+    <div className="min-h-screen bg-slate-50 text-slate-800">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
+        <header className="text-center mb-10">
+          <div className="inline-flex items-center justify-center bg-blue-600 rounded-xl p-3 mb-4">
+             <FileText className="w-8 h-8 text-white" />
           </div>
-          {ADOBE_CLIENT_ID.includes("CLIENT_ID") && (
-             <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-               <p className="text-sm text-yellow-800">
-                 <strong>Note:</strong> Please replace the placeholder with your actual Adobe PDF Embed API Client ID to enable PDF viewing.
-               </p>
-             </div>
-           )}
-        </div>
-      </div>
-      <div className="max-w-4xl mx-auto px-6 py-12">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200">
-          <div className="p-8 border-b border-gray-100 text-center">
-            <h2 className="text-2xl font-semibold text-gray-900 mb-2">Upload Your Documents</h2>
-            <p className="text-gray-600">Select or drag PDF files to analyze their structure</p>
-          </div>
+          <h1 className="text-4xl font-bold tracking-tight text-slate-900">
+            PDF Document Analyzer
+          </h1>
+          <p className="mt-3 text-lg text-slate-600">
+            Upload your PDFs to automatically extract their heading structure.
+          </p>
+        </header>
+
+        <main className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200">
           <div className="p-8">
             <div
-              className={`relative border-2 border-dashed rounded-xl p-12 text-center transition-all duration-200 ${
-                dragActive ? "border-blue-400 bg-blue-50" : "border-gray-200 hover:border-gray-300"
+              className={`relative border-2 border-dashed rounded-xl p-10 text-center transition-all duration-300 ${
+                dragActive
+                  ? "border-blue-500 bg-blue-50"
+                  : "border-slate-300 hover:border-slate-400"
               }`}
               onDragEnter={handleDrag}
               onDragLeave={handleDrag}
@@ -442,21 +446,26 @@ const HeadingExtraction = () => {
                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                 id="file-upload-input"
               />
-              <div className="flex flex-col items-center space-y-6">
+              <div className="flex flex-col items-center space-y-4">
                 <div
-                  className={`w-20 h-20 rounded-full flex items-center justify-center transition-colors ${
-                    dragActive ? "bg-blue-100" : "bg-gray-100"
+                  className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors duration-300 ${
+                    dragActive ? "bg-blue-100" : "bg-slate-100"
                   }`}
                 >
                   <Upload
-                    className={`w-10 h-10 transition-colors ${
-                      dragActive ? "text-blue-600" : "text-gray-400"
+                    className={`w-8 h-8 transition-colors duration-300 ${
+                      dragActive ? "text-blue-600" : "text-slate-500"
                     }`}
                   />
                 </div>
                 <div>
-                  <p className="text-xl font-medium text-gray-900 mb-2">Drop PDF files here, or click to browse</p>
-                  <p className="text-gray-500">Support for multiple PDF documents</p>
+                  <p className="text-lg font-semibold text-slate-900">
+                    Drop PDFs here or{" "}
+                    <span className="text-blue-600">browse files</span>
+                  </p>
+                  <p className="text-sm text-slate-500 mt-1">
+                    Maximum file size: 50MB
+                  </p>
                 </div>
               </div>
             </div>
@@ -464,63 +473,56 @@ const HeadingExtraction = () => {
             {files.length > 0 && (
               <div className="mt-8">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-gray-900">Selected Files ({files.length})</h3>
+                  <h3 className="text-lg font-medium text-slate-900">
+                    Selected Files ({files.length})
+                  </h3>
                   <div className="flex items-center space-x-4">
                     <button
                       onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 font-medium"
+                      className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 font-semibold"
                     >
                       <PlusCircle className="w-4 h-4" />
                       <span>Add More</span>
                     </button>
                     <button
-                      onClick={() => {
-                        const clearedFileNames = files.map((f) => f.name);
-                        const newPdfUrls = { ...pdfUrls };
-                        clearedFileNames.forEach((name) => {
-                          if (newPdfUrls[name]) {
-                            URL.revokeObjectURL(newPdfUrls[name]);
-                            delete newPdfUrls[name];
-                          }
-                        });
-                        setFiles([]);
-                        setPdfUrls(newPdfUrls);
-                      }}
-                      className="text-sm text-gray-500 hover:text-gray-700"
+                      onClick={clearAllFiles}
+                      className="text-sm text-slate-500 hover:text-red-600 font-medium"
                     >
                       Clear all
                     </button>
                   </div>
                 </div>
-                <div className="space-y-3">
+                <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
                   {files.map((file, idx) => (
                     <div
                       key={idx}
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border"
+                      className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
                     >
-                      <div className="flex items-center space-x-4 min-w-0">
-                        <div className="w-10 h-10 bg-red-100 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 text-red-600" />
-                        </div>
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <FileText className="w-5 h-5 text-red-500 flex-shrink-0" />
                         <div className="min-w-0">
-                          <p className="font-medium text-gray-900 truncate">{file.name}</p>
-                          <p className="text-sm text-gray-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                          <p className="font-medium text-slate-800 truncate">
+                            {file.name}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            {(file.size / 1024 / 1024).toFixed(2)} MB
+                          </p>
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2 ml-4">
+                      <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
                         <button
                           onClick={() => openPdfInNewTab(file.name)}
-                          className="p-2 text-gray-400 hover:text-blue-600 transition-colors rounded-lg hover:bg-white"
+                          className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors rounded-md hover:bg-slate-200"
                           title="Preview PDF in New Tab"
                         >
-                          <Eye className="w-5 h-5" />
+                          <Eye className="w-4 h-4" />
                         </button>
                         <button
                           onClick={() => handleRemoveFile(file.name)}
-                          className="p-2 text-gray-400 hover:text-red-600 transition-colors rounded-lg hover:bg-white"
+                          className="p-1.5 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-200"
                           title="Remove File"
                         >
-                          <X className="w-5 h-5" />
+                          <X className="w-4 h-4" />
                         </button>
                       </div>
                     </div>
@@ -528,21 +530,20 @@ const HeadingExtraction = () => {
                 </div>
               </div>
             )}
+          </div>
 
-            {message && (
-              <div className="mt-6 p-4 rounded-lg bg-blue-50 border border-blue-200">
-                <div className="flex items-center space-x-2">
-                  {getStatusIcon()}
-                  <span className="text-blue-800">{message}</span>
-                </div>
+          <div className="p-6 bg-slate-50/50 border-t border-slate-200 rounded-b-2xl">
+             {message && !isLoading && (
+              <div className={`mt-2 mb-6 p-3 rounded-lg border flex items-center space-x-3 text-sm ${message.includes('Failed') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-green-50 border-green-200 text-green-800'}`}>
+                {message.includes('Failed') ? <AlertCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
+                <span>{message}</span>
               </div>
             )}
-
-            <div className="flex justify-center mt-8">
+            <div className="flex justify-center">
               <button
                 onClick={handleUpload}
                 disabled={files.length === 0 || isLoading}
-                className="px-8 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center space-x-3 text-lg"
+                className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-3 text-base shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/30"
               >
                 {isLoading ? (
                   <>
@@ -558,7 +559,7 @@ const HeadingExtraction = () => {
               </button>
             </div>
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );
@@ -567,127 +568,154 @@ const HeadingExtraction = () => {
    * The component for displaying the analysis results and the PDF viewer.
    */
   const ResultsPage = () => (
-    <div className="min-h-screen bg-gray-50">
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        
-      </div>
-
-      <div className="w-full mx-auto px-6 py-8">
-        <div className={`flex gap-8 ${selectedPdf ? 'h-[calc(100vh-120px)]' : ''}`}>
-          <div className={`space-y-6 ${selectedPdf ? 'w-1/2 overflow-y-auto pr-4' : 'w-full'}`}>
-            {results.map((doc, idx) => (
-              <div key={idx} className="bg-white rounded-xl shadow-sm border border-gray-200">
-                <div className="p-6 border-b border-gray-100">
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1 truncate">{doc.filename}</h3>
-                      <div className="flex items-center flex-wrap gap-x-4 text-sm text-gray-500">
-                        <span>Title: {doc.title || "N/A"}</span>
-                        <span>•</span>
-                        <span>{doc.outline?.outline?.length || 0} headings</span>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
-                      <button
-                        onClick={() => toggleExpand(doc.filename)}
-                        className="flex items-center space-x-1 text-sm text-gray-600 hover:text-blue-600 transition px-2 py-1 rounded hover:bg-gray-50"
-                      >
-                        {expandedDocs[doc.filename] ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                        <span>{expandedDocs[doc.filename] ? "Hide" : "Show"}</span>
-                      </button>
-                      <button
-                        onClick={() => openPdfInNewTab(doc.filename)}
-                        className="flex items-center space-x-2 px-3 py-1.5 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
-                        title="Open PDF in new tab"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                        <span>Open</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {expandedDocs[doc.filename] && (
-                  <div className="p-6">
-                    <h4 className="text-sm font-semibold text-gray-700 mb-4 uppercase tracking-wide">Document Structure</h4>
-                    {doc.outline?.outline?.length > 0 ? (
-                      <div className="space-y-1">
-                        {doc.outline.outline.map((heading, hIdx) => (
-                          <button
-                            key={hIdx}
-                            onClick={() => handleHeadingClick(doc, heading)}
-                            className="w-full flex items-center py-3 px-4 rounded-lg hover:bg-gray-50 transition-colors group text-left border border-transparent hover:border-gray-200"
-                            style={{ marginLeft: getIndentLevel(heading.level) }}
-                          >
-                            <ChevronRight className="w-4 h-4 text-gray-300 mr-3 group-hover:text-blue-500 transition-colors flex-shrink-0" />
-                            <div className="flex-1 flex justify-between items-center gap-4 min-w-0">
-                              <span
-                                className={`truncate font-medium group-hover:text-blue-600 transition-colors ${
-                                  heading.level === "H1" ? "text-gray-900 text-base" : "text-gray-800 text-sm"
-                                }`}
-                              >
-                                {heading.text}
-                              </span>
-                              <div className="flex items-center gap-2 text-xs text-gray-400 group-hover:text-blue-500 transition-colors flex-shrink-0">
-                                <span>Page {heading.page + 1}</span>
-                                <Eye className="w-4 h-4" />
-                              </div>
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    ) : (
-                      <div className="text-center py-12">
-                        <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                          <FileText className="w-8 h-8 text-gray-400" />
-                        </div>
-                        <p className="text-gray-500 text-lg">No headings found in this document</p>
-                      </div>
-                    )}
-                  </div>
-                )}
+    <div className="h-screen bg-slate-100 flex flex-col">
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 flex-shrink-0">
+        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex items-center justify-between h-16">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <FileText className="w-5 h-5 text-white" />
               </div>
-            ))}
+              <h1 className="text-xl font-semibold text-slate-900">
+                Analysis Results
+              </h1>
+            </div>
+            <button
+              onClick={goBackToUpload}
+              className="flex items-center space-x-2 px-4 py-2 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 font-semibold rounded-lg transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4" />
+              <span>Start Over</span>
+            </button>
           </div>
+        </div>
+      </header>
 
-          {selectedPdf && (
-            <div className="w-1/2 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
-              <div className="p-4 border-b border-gray-100 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-medium text-gray-900 truncate">{selectedPdf.file.name}</h3>
-                  <p className="text-sm text-gray-500">{isAdobeLoaded ? 'Adobe PDF Viewer' : 'Loading viewer...'}</p>
+      <main className="flex-1 flex gap-6 p-6 min-h-0">
+        {/* Left Panel: Results List */}
+        <div className="w-full lg:w-1/2 flex-shrink-0 overflow-y-auto space-y-4 pr-2">
+          {results.map((doc, idx) => (
+            <div
+              key={idx}
+              className="bg-white rounded-xl shadow-md shadow-slate-200/50 border border-slate-200"
+            >
+              <div className="p-4 border-b border-slate-100">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-base font-semibold text-slate-800 mb-1 truncate">
+                      {doc.filename}
+                    </h3>
+                    <div className="flex items-center flex-wrap gap-x-3 text-xs text-slate-500">
+                      <span>{doc.outline?.outline?.length || 0} headings found</span>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
+                    <button
+                      onClick={() => toggleExpand(doc.filename)}
+                      className="flex items-center space-x-1 text-xs text-slate-600 hover:text-blue-600 transition px-2 py-1 rounded hover:bg-slate-100 font-medium"
+                    >
+                      {expandedDocs[doc.filename] ? (
+                        <ChevronDown className="w-4 h-4" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4" />
+                      )}
+                      <span>{expandedDocs[doc.filename] ? "Hide" : "Show"}</span>
+                    </button>
+                  </div>
                 </div>
+              </div>
+
+              {expandedDocs[doc.filename] && (
+                <div className="p-2">
+                  {doc.outline?.outline?.length > 0 ? (
+                    <div className="space-y-1 p-2 max-h-[60vh] overflow-y-auto">
+                      {doc.outline.outline.map((heading, hIdx) => (
+                        <button
+                          key={hIdx}
+                          onClick={() => handleHeadingClick(doc, heading)}
+                          className="w-full flex items-center py-2 px-3 rounded-md hover:bg-blue-50 transition-colors group text-left"
+                          style={{ marginLeft: getIndentLevel(heading.level) }}
+                        >
+                          <div className="flex-1 flex justify-between items-center gap-4 min-w-0">
+                            <span
+                              className={`truncate font-medium group-hover:text-blue-700 transition-colors ${
+                                heading.level === "H1"
+                                  ? "text-slate-800 text-sm"
+                                  : "text-slate-600 text-sm"
+                              }`}
+                            >
+                              {heading.text}
+                            </span>
+                            <div className="flex items-center gap-1 text-xs text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0">
+                              <span>P.{heading.page + 1}</span>
+                            </div>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-10 px-4">
+                        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                            <FileText className="w-6 h-6 text-slate-400" />
+                        </div>
+                        <p className="text-slate-500 text-sm font-medium">No headings found in this document.</p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Right Panel: PDF Viewer */}
+        <div className="hidden lg:flex w-1/2 bg-white rounded-xl shadow-lg shadow-slate-200/60 border border-slate-200 flex-col overflow-hidden">
+          {selectedPdf ? (
+            <>
+              <div className="p-3 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
+                  <h3 className="text-sm font-semibold text-slate-800 truncate px-2">
+                    {selectedPdf.file.name}
+                  </h3>
                 <button
                   onClick={() => {
                     setSelectedPdf(null);
                     setHighlightAnnotationId(null);
                   }}
-                  className="p-2 text-gray-400 hover:text-gray-600 transition-colors rounded-lg hover:bg-gray-100"
+                  className="p-1.5 text-slate-500 hover:text-slate-800 transition-colors rounded-md hover:bg-slate-100"
                   aria-label="Close PDF Viewer"
                 >
-                  <X className="w-5 h-5" />
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className="flex-1 p-4">
+              <div className="flex-1 bg-slate-50 min-h-0">
                 <div
                   id="adobe-pdf-viewer"
                   ref={pdfViewerRef}
-                  className="flex-1 border border-gray-200 rounded-lg overflow-hidden bg-white h-full"
+                  className="w-full h-full"
                 >
                   {!isAdobeLoaded && (
-                    <div className="flex items-center justify-center h-full bg-gray-50">
+                    <div className="flex items-center justify-center h-full">
                       <div className="text-center">
                         <Loader2 className="mx-auto h-8 w-8 text-blue-600 mb-3 animate-spin" />
-                        <p className="text-gray-600 font-medium">Loading Adobe PDF Viewer...</p>
+                        <p className="text-slate-600 font-medium">Loading PDF Viewer...</p>
                       </div>
                     </div>
                   )}
                 </div>
               </div>
+            </>
+          ) : (
+            <div className="flex items-center justify-center h-full bg-slate-50/50 p-8">
+                <div className="text-center">
+                    <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-slate-200">
+                        <BookOpen className="w-10 h-10 text-slate-400" />
+                    </div>
+                    <h3 className="text-lg font-semibold text-slate-800">Document Viewer</h3>
+                    <p className="text-slate-500 mt-2 max-w-xs mx-auto">Click on a heading from the list on the left to view the document and highlight its location.</p>
+                </div>
             </div>
           )}
         </div>
-      </div>
+      </main>
     </div>
   );
 

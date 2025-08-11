@@ -1,28 +1,29 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Clock, Eye, ChevronDown, ChevronRight, Star, MapPin, Book, ZoomIn, ZoomOut, RotateCw } from 'lucide-react';
+import { Upload, FileText, Clock, Eye, ChevronDown, ChevronRight, Star, MapPin, X, Plus, BrainCircuit } from 'lucide-react';
 
 // Main Component
 const Recommendation = () => {
   // State for inputs and files
   const [persona, setPersona] = useState('');
   const [task, setTask] = useState('');
-  const [uploadedFiles, setUploadedFiles] = useState([]); // This will be our single source of truth for files
+  const [uploadedFiles, setUploadedFiles] = useState([]);
 
   // State for results and loading
   const [analysisResults, setAnalysisResults] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [expandedSection, setExpandedSection] = useState(null);
+  const [expandedSection, setExpandedSection] = useState(null); // For accordion
 
-  // --- NEW: State for Adobe PDF Embed API Viewer ---
+  // State for Adobe PDF Embed API Viewer
   const [selectedPdf, setSelectedPdf] = useState({ file: null, targetPage: 1 });
   const [isAdobeLoaded, setIsAdobeLoaded] = useState(false);
   const pdfViewerRef = useRef(null);
   const fileInputRef = useRef(null);
 
+  // --- CONFIGURATION ---
   // Replace with your actual Adobe PDF Embed API Client ID
   const ADOBE_CLIENT_ID = "628c0718047f4a0eaaccc8a09c8e3130";
 
-  // --- Adobe PDF Embed API Script Loading ---
+  // --- ADOBE PDF EMBED API SCRIPT LOADING ---
   useEffect(() => {
     const loadAdobeAPI = () => {
       if (window.AdobeDC) {
@@ -38,15 +39,14 @@ const Recommendation = () => {
     loadAdobeAPI();
   }, []);
 
-  // --- Core PDF Viewer Logic (using Adobe API) ---
+  // --- CORE PDF VIEWER LOGIC (using Adobe API) ---
   useEffect(() => {
     const initializeAdobeViewer = (file, targetPage) => {
       if (!isAdobeLoaded || !window.AdobeDC || !file || !pdfViewerRef.current) {
         return;
       }
 
-      // Clear the container before rendering a new PDF
-      pdfViewerRef.current.innerHTML = '';
+      pdfViewerRef.current.innerHTML = ''; // Clear the container
 
       try {
         const adobeDCView = new window.AdobeDC.View({
@@ -54,21 +54,17 @@ const Recommendation = () => {
           divId: pdfViewerRef.current.id,
         });
 
-        const previewFilePromise = adobeDCView.previewFile(
-          {
-            content: { promise: file.arrayBuffer() },
-            metaData: { fileName: file.name },
-          },
-          {
-            embedMode: 'SIZED_CONTAINER',
-            showAnnotationTools: false,
-            showLeftHandPanel: true,
-            showDownloadPDF: true,
-            showPrintPDF: true,
-          }
-        );
+        const previewFilePromise = adobeDCView.previewFile({
+          content: { promise: file.arrayBuffer() },
+          metaData: { fileName: file.name },
+        }, {
+          embedMode: 'SIZED_CONTAINER',
+          showAnnotationTools: false,
+          showLeftHandPanel: true,
+          showDownloadPDF: true,
+          showPrintPDF: true,
+        });
 
-        // Use the promise to reliably navigate after the document is loaded
         previewFilePromise.then(viewer => {
           if (targetPage > 1) {
             viewer.getAPIs().then(apis => {
@@ -87,34 +83,21 @@ const Recommendation = () => {
       initializeAdobeViewer(selectedPdf.file, selectedPdf.targetPage);
     } else if (pdfViewerRef.current) {
       // Clear viewer if no PDF is selected
-      pdfViewerRef.current.innerHTML = '<div class="p-8 text-center text-gray-500">Select a section to view the source PDF here.</div>';
+      pdfViewerRef.current.innerHTML = '<div class="p-8 text-center text-slate-500">Select a section to view the source PDF here.</div>';
     }
   }, [selectedPdf, isAdobeLoaded]);
 
-
-  // --- UI Handlers ---
-
-  const handleFileUpload = (event) => {
-    const files = Array.from(event.target.files);
-    setUploadedFiles(prev => [...prev, ...files]);
+  // --- UI HANDLERS ---
+  const handleFileChange = (event) => {
+    const newFiles = Array.from(event.target.files);
+    if (newFiles.length) {
+      setUploadedFiles(prev => [...prev, ...newFiles]);
+    }
   };
-  
-  // *** NEW: Function to normalize filenames for robust matching ***
-  const normalizeFileName = (name) => {
-    if (!name) return '';
-    return name
-      .replace(/\.pdf$/i, '') // Remove .pdf extension
-      .replace(/[_\s-]+/g, ' ') // Replace underscores, spaces, and dashes with a single space
-      .replace(/\s+/g, ' ') // Replace multiple spaces with a single space
-      .trim()
-      .toLowerCase();
-  };
-
 
   const removeFile = (fileNameToRemove) => {
     setUploadedFiles(prev => {
       const newFiles = prev.filter(file => file.name !== fileNameToRemove);
-      // If the removed file was the one being viewed, clear the viewer
       if (selectedPdf.file?.name === fileNameToRemove) {
         setSelectedPdf({ file: null, targetPage: 1 });
       }
@@ -122,40 +105,53 @@ const Recommendation = () => {
     });
   };
 
+  const triggerFileUpload = () => {
+    fileInputRef.current?.click();
+  };
+
+  const normalizeFileName = (name) => {
+    if (!name) return '';
+    return name
+      .replace(/\.pdf$/i, '')
+      .replace(/[_\s-]+/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim()
+      .toLowerCase();
+  };
+
   const handleAnalyze = async () => {
     if (!persona || !task || uploadedFiles.length === 0) return;
     setLoading(true);
+    setAnalysisResults(null);
+    setExpandedSection(null);
+    setSelectedPdf({ file: null, targetPage: 1 });
+
     try {
       const formData = new FormData();
       formData.append('persona', persona);
       formData.append('job', task);
-      uploadedFiles.forEach(file => {
-        formData.append('files', file);
-      });
+      uploadedFiles.forEach(file => formData.append('files', file));
 
       const response = await fetch('http://localhost:8000/semantic/process-pdfs', {
         method: 'POST',
         body: formData,
       });
 
-      if (!response.ok) throw new Error('Analysis request failed');
+      if (!response.ok) throw new Error(`Analysis request failed with status: ${response.status}`);
       const data = await response.json();
       setAnalysisResults(data);
-      // Clear the selected PDF when new results are loaded
-      setSelectedPdf({ file: null, targetPage: 1 });
     } catch (error) {
       console.error('Error during analysis:', error);
-      alert('An error occurred during analysis. Please check the console.');
+      alert('An error occurred during analysis. Please check the console and ensure the backend is running.');
     } finally {
       setLoading(false);
     }
   };
 
-  // *** MODIFIED: Use normalizeFileName for robust matching ***
   const navigateToPage = (fileName, pageNumber) => {
     const normalizedFileName = normalizeFileName(fileName);
     const fileToLoad = uploadedFiles.find(f => normalizeFileName(f.name) === normalizedFileName);
-    
+
     if (fileToLoad) {
       setSelectedPdf({ file: fileToLoad, targetPage: pageNumber });
     } else {
@@ -165,153 +161,175 @@ const Recommendation = () => {
       console.log("Normalized available files:", uploadedFiles.map(f => normalizeFileName(f.name)));
     }
   };
-
-  // Helper for styling score badges
-  const getScoreColor = (score) => {
-    if (score >= 0.4) return 'text-green-600 bg-green-100';
-    if (score >= 0.35) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
+  
+  const resetAnalysis = () => {
+    setAnalysisResults(null);
+    setUploadedFiles([]);
+    setPersona('');
+    setTask('');
+    setSelectedPdf({ file: null, targetPage: 1 });
   };
 
-  // Helper for styling rank badges
+  // --- HELPER FUNCTIONS FOR STYLING ---
+  const getScoreColor = (score) => {
+    if (score >= 0.4) return 'text-green-700 bg-green-100';
+    if (score >= 0.35) return 'text-yellow-700 bg-yellow-100';
+    return 'text-red-700 bg-red-100';
+  };
+
   const getRankBadgeColor = (rank) => {
     if (rank <= 2) return 'bg-yellow-400 text-yellow-900';
-    if (rank <= 4) return 'bg-gray-400 text-white';
+    if (rank <= 4) return 'bg-slate-400 text-white';
     return 'bg-amber-600 text-white';
   };
-
-  // --- Render Methods for UI Sections ---
-
+  
+  // --- RENDER METHODS FOR UI SECTIONS ---
   const renderUploadForm = () => (
     <div className="p-6">
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Persona</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">Persona</label>
           <input
             type="text"
             value={persona}
             onChange={(e) => setPersona(e.target.value)}
-            placeholder="e.g., Tourist, Business Traveler"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g., Avid Hiker, Culinary Tourist"
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow"
           />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-2">Task to be Done</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">Task to be Done</label>
           <input
             type="text"
             value={task}
             onChange={(e) => setTask(e.target.value)}
-            placeholder="e.g., Plan a 4-day trip, Find best restaurants"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g., Find challenging trails, Discover local cuisine"
+            className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 transition-shadow"
           />
         </div>
       </div>
+      
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 mb-2">Upload PDFs</label>
-        <div
-          onClick={() => fileInputRef.current?.click()}
-          className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-blue-500 cursor-pointer"
-        >
-          <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
-          <p className="text-gray-600">Click or drag to upload PDF files</p>
+        <div className="flex justify-between items-center mb-2">
+          <label className="text-sm font-medium text-slate-700">Source Documents</label>
+          <button onClick={triggerFileUpload} className="flex items-center gap-2 text-sm text-indigo-600 font-semibold hover:text-indigo-800">
+            <Plus className="h-4 w-4" /> Add More Files
+          </button>
         </div>
-        <input ref={fileInputRef} type="file" multiple accept=".pdf" onChange={handleFileUpload} className="hidden" />
-        {uploadedFiles.length > 0 && (
-          <div className="mt-4 space-y-2">
+
+        <input ref={fileInputRef} type="file" multiple accept=".pdf" onChange={handleFileChange} className="hidden" />
+
+        {uploadedFiles.length === 0 ? (
+          <div
+            onClick={triggerFileUpload}
+            className="border-2 border-dashed border-slate-300 rounded-lg p-8 text-center hover:border-indigo-500 cursor-pointer transition-colors bg-slate-50"
+          >
+            <Upload className="mx-auto h-10 w-10 text-slate-400 mb-4" />
+            <p className="text-slate-600 font-semibold">Click or drag to upload PDFs</p>
+            <p className="text-sm text-slate-500">Add one or more PDF files to analyze.</p>
+          </div>
+        ) : (
+          <div className="mt-2 space-y-2 p-3 bg-slate-50 rounded-lg border border-slate-200">
             {uploadedFiles.map((file, index) => (
-              <div key={index} className="flex items-center justify-between p-3 bg-blue-50 rounded-lg">
-                <div className="flex items-center truncate">
-                  <FileText className="h-5 w-5 text-blue-600 mr-2 flex-shrink-0" />
-                  <span className="text-sm text-gray-700 truncate">{file.name}</span>
+              <div key={index} className="flex items-center justify-between p-2 bg-white rounded-md shadow-sm border border-slate-200">
+                <div className="flex items-center truncate gap-2">
+                  <FileText className="h-5 w-5 text-indigo-600 flex-shrink-0" />
+                  <span className="text-sm text-slate-800 font-medium truncate" title={file.name}>{file.name}</span>
                 </div>
-                <button onClick={() => removeFile(file.name)} className="text-red-600 hover:text-red-800 text-sm ml-4">Remove</button>
+                <button onClick={() => removeFile(file.name)} className="p-1 rounded-full hover:bg-red-100 text-slate-500 hover:text-red-600 transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
               </div>
             ))}
           </div>
         )}
       </div>
+      
       <button
         onClick={handleAnalyze}
         disabled={loading || !persona || !task || uploadedFiles.length === 0}
-        className="w-full bg-blue-600 text-white py-3 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400"
+        className="w-full bg-indigo-600 text-white py-3 rounded-lg font-semibold text-base hover:bg-indigo-700 disabled:bg-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all"
       >
-        {loading ? 'Analyzing...' : 'Analyze PDFs'}
+        {loading ? (
+            <>
+                <Clock className="h-5 w-5 animate-spin"/> Analyzing...
+            </>
+        ) : (
+            <>
+                <BrainCircuit className="h-5 w-5"/> Analyze PDFs
+            </>
+        )}
       </button>
     </div>
   );
 
   const renderResults = () => {
-    // *** MODIFIED: Combine and slice data for rendering ***
     const topResults = analysisResults.data.extracted_sections
-      .slice(0, 3)
+      .slice(0, 5) // Display top 5 for more options
       .map((section, index) => ({
         ...section,
-        // Assuming a 1-to-1 mapping between extracted_sections and subsection_analysis
         refined_text: analysisResults.data.subsection_analysis[index]?.refined_text || 'No detailed summary available.',
       }));
 
     return (
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Left Panel: Analysis */}
-        <div className="lg:col-span-2 bg-white rounded-xl shadow-sm border border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">Analysis Results</h2>
-            <button onClick={() => { setAnalysisResults(null); setUploadedFiles([]); setSelectedPdf({ file: null, targetPage: 1 }); }} className="text-sm text-blue-600 hover:text-blue-800">New Analysis</button>
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div className="lg:col-span-3 bg-white rounded-xl shadow-lg border border-slate-200 p-6">
+          <div className="flex items-start justify-between mb-4 pb-4 border-b border-slate-200">
+            <div>
+              <h2 className="text-xl font-bold text-slate-900">Analysis Results</h2>
+              <p className="text-sm text-slate-500 mt-1">Showing top sections relevant to your task.</p>
+            </div>
+            <button onClick={resetAnalysis} className="text-sm font-semibold text-indigo-600 hover:text-indigo-800">New Analysis</button>
           </div>
           
-          {/* *** MODIFIED: Render combined top 3 results *** */}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-900 mb-3 flex items-center"><Star className="h-5 w-5 text-yellow-500 mr-2" />Top 3 Relevant Sections</h3>
-            <div className="space-y-4">
-              {topResults.map((section, index) => (
-                <div key={index} className="border border-gray-200 rounded-lg overflow-hidden">
-                  <div className="p-4 bg-gray-50">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-2">
-                        <span className={`px-2 py-1 rounded-full text-xs font-bold ${getRankBadgeColor(section.importance_rank)}`}>#{section.importance_rank}</span>
-                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${getScoreColor(section.similarity_score)}`}>{(section.similarity_score * 100).toFixed(1)}%</span>
-                      </div>
-                      <button onClick={() => navigateToPage(section.document, section.page_number)} className="flex items-center text-sm text-blue-600 hover:text-blue-800 cursor-pointer">
-                        <MapPin className="h-4 w-4 mr-1" />Page {section.page_number}
-                      </button>
+          <div className="space-y-4">
+            {topResults.map((section, index) => (
+              <div key={index} className="border border-slate-200 rounded-lg overflow-hidden transition-shadow hover:shadow-md">
+                <div className="p-4 bg-slate-50">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className={`px-2 py-1 rounded-full text-xs font-bold ${getRankBadgeColor(section.importance_rank)}`}>Rank #{section.importance_rank}</span>
+                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getScoreColor(section.similarity_score)}`}>Relevance: {(section.similarity_score * 100).toFixed(0)}%</span>
                     </div>
-                    <h4 className="font-semibold text-gray-900 mb-1">{section.section_title} {section.refined_text}</h4>
-                    <div className="text-sm text-gray-600 flex items-center"><FileText className="h-4 w-4 mr-1" />{section.document}</div>
+                    <button onClick={() => navigateToPage(section.document, section.page_number)} className="flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer">
+                      <MapPin className="h-4 w-4 mr-1" />View on Page {section.page_number}
+                    </button>
                   </div>
-                  
-                  {/* <div className="p-4 cursor-pointer hover:bg-gray-100" onClick={() => setExpandedSection(expandedSection === index ? null : index)}>
-                     <div className="flex items-center justify-between text-sm font-medium text-blue-700">
-                        <span>Detailed Summary</span>
-                        {expandedSection === index ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                     </div>
-                  </div> */}
-
-                  {expandedSection === index && (
-                    <div className="p-4 border-t border-gray-200">
-                      <p className="text-gray-700 leading-relaxed">{section.refined_text}</p>
-                    </div>
-                  )}
+                  <h4 className="font-semibold text-slate-800 text-base">{section.section_title}</h4>
+                  <p className="text-xs text-slate-500 flex items-center mt-1"><FileText className="h-3 w-3 mr-1" />{section.document}</p>
                 </div>
-              ))}
-            </div>
+                
+                <div className="p-4 cursor-pointer hover:bg-slate-100/50" onClick={() => setExpandedSection(expandedSection === index ? null : index)}>
+                  <div className="flex items-center justify-between text-sm font-semibold text-indigo-700">
+                    <span>Detailed Summary</span>
+                    {expandedSection === index ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                  </div>
+                </div>
+
+                {expandedSection === index && (
+                  <div className="px-4 pb-4 border-t border-slate-200 pt-4">
+                    <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">{section.refined_text}</p>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </div>
 
-        {/* Right Panel: PDF Viewer */}
-        <div className="lg:col-span-1 bg-white rounded-xl shadow-sm border border-gray-200 h-fit">
-          <div className="p-4 border-b flex justify-between items-center">
-            <h3 className="text-lg font-semibold text-gray-900 flex items-center"><Eye className="h-5 w-5 text-green-500 mr-2" />Source Document</h3>
-            <span className="text-sm text-gray-600 truncate font-medium">{selectedPdf.file?.name || 'No PDF Selected'}</span>
+        <div className="lg:col-span-2 bg-white rounded-xl shadow-lg border border-slate-200 h-fit sticky top-6">
+          <div className="p-4 border-b border-slate-200">
+            <h3 className="text-lg font-bold text-slate-900 flex items-center"><Eye className="h-5 w-5 text-indigo-500 mr-2" />Source Document</h3>
+            <p className="text-sm text-slate-600 truncate font-medium mt-1" title={selectedPdf.file?.name}>{selectedPdf.file?.name || 'No PDF Selected'}</p>
           </div>
-          <div className="p-4">
+          <div className="p-2">
             <div
               id="adobe-pdf-viewer"
               ref={pdfViewerRef}
-              className="border border-gray-300 rounded-lg bg-gray-50"
+              className="border border-slate-300 rounded-lg bg-slate-50"
               style={{ height: '75vh' }}
             >
-              <div className="p-8 text-center text-gray-500 h-full flex items-center justify-center">
-                  {isAdobeLoaded ? 'Select a section to view the source PDF here.' : 'Loading PDF viewer...'}
+              <div className="p-8 text-center text-slate-500 h-full flex items-center justify-center">
+                <span>{isAdobeLoaded ? 'Select a section to view the source PDF here.' : 'Loading PDF viewer...'}</span>
               </div>
             </div>
           </div>
@@ -320,21 +338,21 @@ const Recommendation = () => {
     );
   }
 
-  // --- Main Component Render ---
+  // --- MAIN COMPONENT RENDER ---
   return (
-    <div className="min-h-screen bg-gray-100 p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6">
-          <div className="p-6 border-b">
-            <h1 className="text-2xl font-bold text-gray-900">Semantic PDF Analysis</h1>
-            <p className="text-gray-600">Analyze PDFs based on your persona and task.</p>
-             {ADOBE_CLIENT_ID === "YOUR_ADOBE_CLIENT_ID_HERE" && (
-                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Note:</strong> Please replace YOUR_ADOBE_CLIENT_ID_HERE with your actual Adobe PDF Embed API Client ID to enable PDF viewing.
-                  </p>
-                </div>
-              )}
+    <div className="min-h-screen bg-slate-100 p-4 sm:p-6 lg:p-8">
+      <div className="max-w-screen-2xl mx-auto">
+        <div className="bg-white rounded-xl shadow-lg border border-slate-200 mb-6">
+          <div className="p-6 border-b border-slate-200">
+            <h1 className="text-2xl font-bold text-slate-900">Semantic PDF Recommendation Engine</h1>
+            <p className="text-slate-600 mt-1">Upload travel guides, manuals, or reports. Define your persona and task to find the most relevant sections instantly.</p>
+            {ADOBE_CLIENT_ID === "YOUR_ADOBE_CLIENT_ID_HERE" && (
+              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-sm text-yellow-800 font-medium">
+                  <strong>Action Required:</strong> To enable the PDF viewer, please replace `YOUR_ADOBE_CLIENT_ID_HERE` in the code with your actual Adobe PDF Embed API Client ID.
+                </p>
+              </div>
+            )}
           </div>
           {!analysisResults ? renderUploadForm() : null}
         </div>

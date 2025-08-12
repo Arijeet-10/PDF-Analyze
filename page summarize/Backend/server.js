@@ -67,7 +67,7 @@ app.post("/ask-pdf", upload.array('files'), async (req, res) => {
     }
 
     // 2. Use Gemini to answer the question based on the combined PDF text
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     
     const prompt = `
       You are an intelligent assistant. Please answer the following question based *only* on the content of the provided documents.
@@ -103,7 +103,7 @@ app.post("/ask", async (req, res) => {
   const { text, question } = req.body;
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const prompt = `
 You are a helpful assistant. Answer the following question using the provided page content breifly.
 If the answer is not in the content, say "I couldn't find that in this page."
@@ -130,66 +130,137 @@ Question: ${question}
 const speechKey = process.env.AZURE_SPEECH_KEY;
 const speechRegion = process.env.AZURE_SPEECH_REGION;
 
-app.post("/generate-podcast", async (req, res) => {
+app.post('/generate-podcast', upload.array('files'), async (req, res) => {
   try {
-    const originalText = req.body.text || "Hello, this is a test podcast.";
+    if (!req.files || req.files.length === 0) {
+      return res.status(400).json({ error: 'No files were uploaded.' });
+    }
 
-    // 1. Summarize using Google Gemini instead of Azure OpenAI
+    // 1. Extract text from uploaded PDF files
+    let combinedText = '';
+    for (const file of req.files) {
+      const data = await pdf(file.buffer);
+      combinedText += data.text + '\n\n';
+    }
+
+    if (!combinedText.trim()) {
+      return res.status(400).json({ error: 'Could not extract text from the provided files.' });
+    }
+
+    // 2. Generate summary using Gemini (your existing logic)
     const summaryPrompt = `
-    Summarize the following text into a concise version that can be read as podcast in under 4 minutes:
-    Only write the summary, do not include any additional text.
-    ${originalText}
+      Summarize the following text into a concise version that can be read as a podcast in under 4 minutes.
+      Only write the summary; do not include any additional text.
+      ${combinedText}
     `;
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Using 1.5 flash as it's often faster for this
     const geminiResult = await model.generateContent(summaryPrompt);
     const summary = geminiResult.response.text().trim();
-
     console.log("Generated summary:", summary);
 
-    // 2. Use Azure Speech to convert summary to audio
+    // 3. Convert summary to audio using Azure Speech SDK (your existing logic)
     const speechConfig = sdk.SpeechConfig.fromSubscription(speechKey, speechRegion);
     speechConfig.speechSynthesisVoiceName = "en-US-AriaNeural";
-    speechConfig.speechSynthesisOutputFormat =
-      sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
+    speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
 
-    const audioConfig = null; // Output directly to buffer
-    const synthesizer = new sdk.SpeechSynthesizer(speechConfig, audioConfig);
+    const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
 
     synthesizer.speakTextAsync(
       summary,
       result => {
         synthesizer.close();
-
         if (result.reason === sdk.ResultReason.SynthesizingAudioCompleted) {
           console.log("✅ Audio generated successfully.");
-
           const audioBase64 = Buffer.from(result.audioData).toString("base64");
-
           res.json({
             audioContent: audioBase64,
             format: "mp3"
           });
         } else {
           console.error("❌ Error synthesizing speech:", result.errorDetails);
-          res.status(500).json({ error: result.errorDetails });
+          res.status(500).json({ error: `Azure Speech Error: ${result.errorDetails}` });
         }
       },
       err => {
         synthesizer.close();
-        console.error("❌ Error:", err);
-        res.status(500).json({ error: err.message });
+        console.error("❌ Speech SDK Error:", err);
+        res.status(500).json({ error: `Speech SDK Error: ${err.message}` });
       }
     );
 
   } catch (error) {
-    console.error("Server error:", error);
+    console.error("Server error in /generate-podcast-from-files:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 
+// *** MODIFIED /facts ENDPOINT ***
+app.post("/facts", upload.array('files'), async (req, res) => {
+  if (!req.files || req.files.length === 0) {
+    return res.status(400).json({ error: "At least one file is required." });
+  }
 
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const allFacts = [];
+
+    // Process files one by one to avoid overwhelming the API
+    for (const file of req.files) {
+      try {
+        // Use pdf-parse on the server to extract text from the file buffer
+        const data = await pdf(file.buffer);
+        const text = data.text;
+
+        if (!text || text.trim().length < 100) {
+          allFacts.push({
+            filename: file.originalname,
+            facts: ["This document does not contain enough text to extract facts."],
+          });
+          continue; // Skip to the next file
+        }
+
+        const textSample = text.substring(0, 8000);
+        const prompt = `
+          Based on the following document text, extract 2-3 interesting, specific, and surprising facts or key insights.
+          Present them as a short, easy-to-read bulleted list. Each fact should be a complete sentence.
+          If no specific facts can be found, state that clearly. Only return the bullet points.
+
+          DOCUMENT TEXT SAMPLE:
+          ---
+          ${textSample}
+          ---
+        `;
+
+        const result = await model.generateContent(prompt);
+        const responseText = result.response.text();
+        
+        const factsArray = responseText
+          .split('\n')
+          .map(line => line.replace(/[-\*]\s*/, '').trim())
+          .filter(line => line.length > 0);
+
+        allFacts.push({
+          filename: file.originalname,
+          facts: factsArray.length > 0 ? factsArray : ["No specific facts could be extracted."],
+        });
+
+      } catch (pdfError) {
+        console.error(`Error processing file ${file.originalname}:`, pdfError);
+        allFacts.push({
+          filename: file.originalname,
+          facts: ["Could not process this PDF file to extract facts."],
+        });
+      }
+    }
+
+    res.json({ facts: allFacts });
+
+  } catch (err) {
+    console.error("Error in /facts endpoint:", err);
+    res.status(500).json({ error: "Failed to process files and extract facts." });
+  }
+});
 
 
 app.listen(5000, () => {

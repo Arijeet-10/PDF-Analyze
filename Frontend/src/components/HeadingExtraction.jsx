@@ -23,7 +23,7 @@ import FloatingChatbot from "./FloatingChatbot"; // Make sure path is correct
 
 // A professional, modern UI for the PDF Document Analyzer
 const HeadingExtraction = () => {
-  // --- STATE AND REFS (Original logic preserved) ---
+  // --- STATE AND REFS ---
   const [files, setFiles] = useState([]);
   const [results, setResults] = useState([]);
   const [message, setMessage] = useState("");
@@ -43,8 +43,9 @@ const HeadingExtraction = () => {
 
   const ADOBE_CLIENT_ID = "628c0718047f4a0eaaccc8a09c8e3130"; // Replace with your Adobe Client ID
 
-  // --- EFFECTS (Original logic preserved) ---
+  // --- EFFECTS ---
   useEffect(() => {
+    // Load Adobe PDF Embed API script
     const loadAdobeAPI = () => {
       if (window.AdobeDC) {
         setIsAdobeLoaded(true);
@@ -61,12 +62,14 @@ const HeadingExtraction = () => {
   }, []);
 
   useEffect(() => {
+    // Clean up object URLs on unmount
     return () => {
       Object.values(pdfUrls).forEach((url) => URL.revokeObjectURL(url));
     };
   }, [pdfUrls]);
 
   useEffect(() => {
+    // Initialize Adobe Viewer when a PDF is selected or the API loads
     if (selectedPdf && isAdobeLoaded) {
       initializeAdobeViewer(selectedPdf.file, selectedPdf.targetPage);
     } else if (!selectedPdf && pdfViewerRef.current) {
@@ -76,7 +79,7 @@ const HeadingExtraction = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPdf, isAdobeLoaded]);
 
-  // --- CORE FUNCTIONS (Original logic preserved) ---
+  // --- CORE FUNCTIONS ---
   const getFileByName = (filename) => {
     return files.find((file) => file.name === filename);
   };
@@ -88,7 +91,7 @@ const HeadingExtraction = () => {
     }
 
     if (pdfViewerRef.current) {
-      pdfViewerRef.current.innerHTML = "";
+      pdfViewerRef.current.innerHTML = ""; // Clear previous instance
     }
 
     try {
@@ -135,7 +138,10 @@ const HeadingExtraction = () => {
 
     if (uniqueNewFiles.length === 0) return;
 
-    setFiles((prevFiles) => [...prevFiles, ...uniqueNewFiles]);
+    const updatedFiles = [...files, ...uniqueNewFiles];
+    setFiles(updatedFiles);
+    // Dispatch event to notify other components (like Header) about the file update
+    window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: updatedFiles } }));
 
     const newUrls = {};
     uniqueNewFiles.forEach((file) => {
@@ -149,7 +155,7 @@ const HeadingExtraction = () => {
   const handleFileChange = (e) => {
     if (e.target.files) {
       addFilesToList(Array.from(e.target.files));
-      e.target.value = null;
+      e.target.value = null; // Reset input to allow re-uploading the same file
     }
   };
 
@@ -158,9 +164,12 @@ const HeadingExtraction = () => {
     if (urlToRevoke) {
       URL.revokeObjectURL(urlToRevoke);
     }
-    setFiles((prevFiles) =>
-      prevFiles.filter((file) => file.name !== fileNameToRemove)
-    );
+    
+    const updatedFiles = files.filter((file) => file.name !== fileNameToRemove);
+    setFiles(updatedFiles);
+    // Dispatch event to notify other components
+    window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: updatedFiles } }));
+
     setPdfUrls((prevUrls) => {
       const newUrls = { ...prevUrls };
       delete newUrls[fileNameToRemove];
@@ -175,9 +184,9 @@ const HeadingExtraction = () => {
       return;
     }
   
-    const isSameDoc = selectedPdf?.file.name === file.name;
     setSelectedPdf({ file, targetPage: heading.page + 1 });
   
+    // Delay highlight logic to ensure viewer is ready
     setTimeout(async () => {
       if (!adobeApiRef.current) {
         console.error("Adobe Viewer API is not available.");
@@ -187,13 +196,14 @@ const HeadingExtraction = () => {
       try {
         const apis = await adobeApiRef.current.getAPIs();
   
+        // Remove previous highlight if it exists
         if (highlightAnnotationId) {
           await apis.removeAnnotations([highlightAnnotationId]);
           setHighlightAnnotationId(null);
         }
   
+        // Search for the heading text to get its coordinates for highlighting
         const searchResults = await apis.search(heading.text);
-        
         const resultOnPage = searchResults.find(r => r.page_num === heading.page + 1);
   
         if (resultOnPage && resultOnPage.quads.length > 0) {
@@ -207,19 +217,19 @@ const HeadingExtraction = () => {
             },
           ]);
           setHighlightAnnotationId(newAnnotation.id);
-          apis.gotoLocation(heading.page + 1, resultOnPage.quads[0][0], resultOnPage.quads[0][1]);
+          // Go to the specific location of the highlighted text
+          apis.gotoLocation(heading.page + 1, resultOnPage.quads[0][0], resultOnpage.quads[0][1]);
         } else {
-          console.warn(
-            `Could not find text "${heading.text}" on page ${
-              heading.page + 1
-            } to highlight.`
-          );
-          apis.gotoLocation(heading.page + 1);
+          console.warn(`Could not find text "${heading.text}" on page ${heading.page + 1} to highlight.`);
+          apis.gotoLocation(heading.page + 1); // Go to the page anyway
         }
       } catch (error) {
         console.error("Error during text highlighting:", error);
+        // Fallback to just going to the page if highlighting fails
+        const apis = await adobeApiRef.current.getAPIs();
+        apis.gotoLocation(heading.page + 1);
       }
-    }, isSameDoc ? 100 : 500);
+    }, 500); // A 500ms delay gives the viewer time to load/switch documents
   };
   
   const toggleExpand = (filename) => {
@@ -306,7 +316,7 @@ const HeadingExtraction = () => {
     if (typeof levelStr !== 'string') return 'pl-0';
     const level = parseInt(levelStr.replace("H", ""), 10);
     if (isNaN(level) || level <= 1) return 'pl-3';
-    return `pl-${(level - 1) * 4 + 3}`; // e.g., H2 -> pl-7, H3 -> pl-11
+    return `pl-${(level - 1) * 4 + 3}`;
   };
   
   const getHeadingTextStyle = (levelStr) => {
@@ -325,6 +335,7 @@ const HeadingExtraction = () => {
     setResults([]);
     Object.values(pdfUrls).forEach((url) => URL.revokeObjectURL(url));
     setFiles([]);
+    window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: [] } }));
     setPdfUrls({});
     setMessage("");
     setHighlightAnnotationId(null);
@@ -334,11 +345,12 @@ const HeadingExtraction = () => {
   const clearAllFiles = () => {
       Object.values(pdfUrls).forEach(url => URL.revokeObjectURL(url));
       setFiles([]);
+      window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: [] } }));
       setPdfUrls({});
       setMessage("");
   }
   
-  // --- UI COMPONENTS ---
+  // --- UI RENDER METHODS ---
 
   const UploadScreen = () => (
     <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
@@ -372,7 +384,7 @@ const HeadingExtraction = () => {
                 Drag & drop PDFs here, or{' '}
                 <span className="text-indigo-600 font-bold">browse your files</span>
               </p>
-              <p className="text-sm text-slate-500 mt-1">Supports multiple PDF files up to 50MB each.</p>
+              <p className="text-sm text-slate-500 mt-1">Supports multiple PDF files.</p>
             </div>
           </div>
 

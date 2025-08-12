@@ -91,18 +91,22 @@ const Recommendation = () => {
   const handleFileChange = (event) => {
     const newFiles = Array.from(event.target.files);
     if (newFiles.length) {
-      setUploadedFiles(prev => [...prev, ...newFiles]);
+      const updatedFiles = [...uploadedFiles, ...newFiles];
+      setUploadedFiles(updatedFiles);
+      // Dispatch event to notify other components (like Header) about the file update
+      window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: updatedFiles } }));
     }
   };
 
   const removeFile = (fileNameToRemove) => {
-    setUploadedFiles(prev => {
-      const newFiles = prev.filter(file => file.name !== fileNameToRemove);
-      if (selectedPdf.file?.name === fileNameToRemove) {
-        setSelectedPdf({ file: null, targetPage: 1 });
-      }
-      return newFiles;
-    });
+    const newFiles = uploadedFiles.filter(file => file.name !== fileNameToRemove);
+    setUploadedFiles(newFiles);
+    // Dispatch event to notify other components
+    window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: newFiles } }));
+    
+    if (selectedPdf.file?.name === fileNameToRemove) {
+      setSelectedPdf({ file: null, targetPage: 1 });
+    }
   };
 
   const triggerFileUpload = () => {
@@ -166,6 +170,8 @@ const Recommendation = () => {
     setTask('');
     setSelectedPdf({ file: null, targetPage: 1 });
     setIsChatbotOpen(false);
+    // Dispatch event to notify other components that files have been cleared
+    window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: [] } }));
   };
 
   // --- HELPER FUNCTIONS FOR STYLING ---

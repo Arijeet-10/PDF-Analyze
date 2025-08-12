@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Upload, FileText, Clock, Eye, ChevronDown, ChevronRight, Star, MapPin, X, Plus, BrainCircuit } from 'lucide-react';
+import { Upload, FileText, Clock, Eye, ChevronDown, ChevronRight, Star, MapPin, X, Plus, BrainCircuit, MessageCircle } from 'lucide-react';
+import FloatingChatbot from './FloatingChatbot'; // Make sure path is correct
 
 // Main Component
 const Recommendation = () => {
@@ -12,6 +13,7 @@ const Recommendation = () => {
   const [analysisResults, setAnalysisResults] = useState(null);
   const [loading, setLoading] = useState(false);
   const [expandedSection, setExpandedSection] = useState(null); // For accordion
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false); // State for chatbot
 
   // State for Adobe PDF Embed API Viewer
   const [selectedPdf, setSelectedPdf] = useState({ file: null, targetPage: 1 });
@@ -20,7 +22,6 @@ const Recommendation = () => {
   const fileInputRef = useRef(null);
 
   // --- CONFIGURATION ---
-  // Replace with your actual Adobe PDF Embed API Client ID
   const ADOBE_CLIENT_ID = "628c0718047f4a0eaaccc8a09c8e3130";
 
   // --- ADOBE PDF EMBED API SCRIPT LOADING ---
@@ -82,7 +83,6 @@ const Recommendation = () => {
     if (selectedPdf.file) {
       initializeAdobeViewer(selectedPdf.file, selectedPdf.targetPage);
     } else if (pdfViewerRef.current) {
-      // Clear viewer if no PDF is selected
       pdfViewerRef.current.innerHTML = '<div class="p-8 text-center text-slate-500">Select a section to view the source PDF here.</div>';
     }
   }, [selectedPdf, isAdobeLoaded]);
@@ -156,9 +156,6 @@ const Recommendation = () => {
       setSelectedPdf({ file: fileToLoad, targetPage: pageNumber });
     } else {
       alert(`PDF "${fileName}" not found. Please ensure it is uploaded.`);
-      console.log("Available files:", uploadedFiles.map(f => f.name));
-      console.log("Normalized search:", normalizedFileName);
-      console.log("Normalized available files:", uploadedFiles.map(f => normalizeFileName(f.name)));
     }
   };
   
@@ -168,6 +165,7 @@ const Recommendation = () => {
     setPersona('');
     setTask('');
     setSelectedPdf({ file: null, targetPage: 1 });
+    setIsChatbotOpen(false);
   };
 
   // --- HELPER FUNCTIONS FOR STYLING ---
@@ -265,7 +263,7 @@ const Recommendation = () => {
 
   const renderResults = () => {
     const topResults = analysisResults.data.extracted_sections
-      .slice(0, 5) // Display top 5 for more options
+      .slice(0, 3) 
       .map((section, index) => ({
         ...section,
         refined_text: analysisResults.data.subsection_analysis[index]?.refined_text || 'No detailed summary available.',
@@ -292,25 +290,12 @@ const Recommendation = () => {
                       <span className={`px-2 py-1 rounded-full text-xs font-semibold ${getScoreColor(section.similarity_score)}`}>Relevance: {(section.similarity_score * 100).toFixed(0)}%</span>
                     </div>
                     <button onClick={() => navigateToPage(section.document, section.page_number)} className="flex items-center text-sm font-semibold text-indigo-600 hover:text-indigo-800 cursor-pointer">
-                      <MapPin className="h-4 w-4 mr-1" />View on Page {section.page_number}
+                      <MapPin className="h-4 w-4 mr-1" />Page {section.page_number}
                     </button>
                   </div>
-                  <h4 className="font-semibold text-slate-800 text-base">{section.section_title}</h4>
+                  <h4 className="font-semibold text-slate-800 text-base">{section.section_title} {section.refined_text}</h4>
                   <p className="text-xs text-slate-500 flex items-center mt-1"><FileText className="h-3 w-3 mr-1" />{section.document}</p>
                 </div>
-                
-                <div className="p-4 cursor-pointer hover:bg-slate-100/50" onClick={() => setExpandedSection(expandedSection === index ? null : index)}>
-                  <div className="flex items-center justify-between text-sm font-semibold text-indigo-700">
-                    <span>Detailed Summary</span>
-                    {expandedSection === index ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                  </div>
-                </div>
-
-                {expandedSection === index && (
-                  <div className="px-4 pb-4 border-t border-slate-200 pt-4">
-                    <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">{section.refined_text}</p>
-                  </div>
-                )}
               </div>
             ))}
           </div>
@@ -338,7 +323,6 @@ const Recommendation = () => {
     );
   }
 
-  // --- MAIN COMPONENT RENDER ---
   return (
     <div className="min-h-screen bg-slate-100 p-4 sm:p-6 lg:p-8">
       <div className="max-w-screen-2xl mx-auto">
@@ -346,18 +330,26 @@ const Recommendation = () => {
           <div className="p-6 border-b border-slate-200">
             <h1 className="text-2xl font-bold text-slate-900">Semantic PDF Recommendation Engine</h1>
             <p className="text-slate-600 mt-1">Upload travel guides, manuals, or reports. Define your persona and task to find the most relevant sections instantly.</p>
-            {ADOBE_CLIENT_ID === "YOUR_ADOBE_CLIENT_ID_HERE" && (
-              <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-sm text-yellow-800 font-medium">
-                  <strong>Action Required:</strong> To enable the PDF viewer, please replace `YOUR_ADOBE_CLIENT_ID_HERE` in the code with your actual Adobe PDF Embed API Client ID.
-                </p>
-              </div>
-            )}
           </div>
           {!analysisResults ? renderUploadForm() : null}
         </div>
         {analysisResults && renderResults()}
       </div>
+      
+      {/* Floating Chatbot Button and Component */}
+      {uploadedFiles.length > 0 && !isChatbotOpen && (
+        <button
+          onClick={() => setIsChatbotOpen(true)}
+          className="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-all z-40"
+        >
+          <MessageCircle className="w-8 h-8" />
+        </button>
+      )}
+      <FloatingChatbot 
+        files={uploadedFiles} 
+        isOpen={isChatbotOpen} 
+        onClose={() => setIsChatbotOpen(false)} 
+      />
     </div>
   );
 };

@@ -6,6 +6,8 @@ import cors from "cors";
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { TextToSpeechClient } from "@google-cloud/text-to-speech";
 import sdk from "microsoft-cognitiveservices-speech-sdk";
+import multer from "multer";
+import pdf from "pdf-parse";
 import fs from "fs";
 import path from "path";
 
@@ -18,6 +20,10 @@ app.use(express.json());
 // Initialize the Google AI and Text-to-Speech clients
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 const ttsClient = new TextToSpeechClient();
+
+const storage = multer.memoryStorage();
+// Accept an array of files under the field name 'files'
+const upload = multer({ storage: storage });
 
 app.post("/summarize-text", async (req, res) => {
   const { text } = req.body;
@@ -35,6 +41,63 @@ app.post("/summarize-text", async (req, res) => {
     res.status(500).json({ error: "Failed to summarize text" });
   }
 });
+
+
+app.post("/ask-pdf", upload.array('files'), async (req, res) => {
+  // Check if files and question are provided
+  if (!req.files || req.files.length === 0 || !req.body.question) {
+    return res.status(400).json({ error: "At least one file and a question are required." });
+  }
+
+  const { question } = req.body;
+  const pdfFiles = req.files;
+  let combinedText = "";
+
+  try {
+    // 1. Extract text from all PDF buffers and combine them
+    for (const file of pdfFiles) {
+        const data = await pdf(file.buffer);
+        combinedText += `--- START OF DOCUMENT: ${file.originalname} ---\n\n`;
+        combinedText += data.text;
+        combinedText += `\n\n--- END OF DOCUMENT: ${file.originalname} ---\n\n`;
+    }
+    
+    if (!combinedText) {
+        return res.status(500).json({ error: "Could not extract text from the provided PDF(s)." });
+    }
+
+    // 2. Use Gemini to answer the question based on the combined PDF text
+    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    
+    const prompt = `
+      You are an intelligent assistant. Please answer the following question based *only* on the content of the provided documents.
+      If the answer cannot be found within the documents, state that clearly. Be concise and helpful.
+      When referencing information, mention which document it came from if possible. Only write the answer, do not include any additional text.
+      Write in a markdown format with bold sub headings and bullet points if needed.
+
+      DOCUMENTS CONTENT:
+      ---
+      ${combinedText}
+      ---
+
+      QUESTION:
+      ${question}
+    `;
+
+    const result = await model.generateContent(prompt);
+    const answer = result.response.text();
+
+    // 3. Send the answer back to the client
+    res.json({ answer });
+
+  } catch (err) {
+    console.error("Error processing PDFs:", err);
+    res.status(500).json({ error: "Failed to process the PDFs and answer the question." });
+  }
+});
+
+
+
 
 app.post("/ask", async (req, res) => {
   const { text, question } = req.body;

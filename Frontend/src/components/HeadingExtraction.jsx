@@ -13,48 +13,37 @@ import {
   PlusCircle,
   X,
   BookOpen,
+  MessageCircle,
+  FileUp,
+  FileCheck2,
+  ListTree,
+  FileX2,
 } from "lucide-react";
+import FloatingChatbot from "./FloatingChatbot"; // Make sure path is correct
 
-/**
- * A React component for uploading PDF documents, extracting their heading structure,
- * and displaying the results with an interactive PDF viewer that highlights
- * headings when they are clicked.
- */
+// A professional, modern UI for the PDF Document Analyzer
 const HeadingExtraction = () => {
-  // State for managing uploaded files
+  // --- STATE AND REFS (Original logic preserved) ---
   const [files, setFiles] = useState([]);
-  // State for storing the analysis results from the backend
   const [results, setResults] = useState([]);
-  // State for displaying user-facing messages (e.g., loading, error, success)
   const [message, setMessage] = useState("");
-  // State to track loading status during API calls
   const [isLoading, setIsLoading] = useState(false);
-  // State to manage the visual style of the drag-and-drop area
   const [dragActive, setDragActive] = useState(false);
-  // State to store object URLs for PDF previews, allowing them to be opened in new tabs
   const [pdfUrls, setPdfUrls] = useState({});
-  // State to track the currently selected PDF for viewing
   const [selectedPdf, setSelectedPdf] = useState(null);
-  // State to control which page is currently displayed ('upload' or 'results')
   const [currentPage, setCurrentPage] = useState("upload");
-  // State to manage the expanded/collapsed state of each document's outline in the results
   const [expandedDocs, setExpandedDocs] = useState({});
-  // State to track if the Adobe PDF Embed API script has loaded
   const [isAdobeLoaded, setIsAdobeLoaded] = useState(false);
-  // State to store the ID of the current highlight annotation for easy removal
   const [highlightAnnotationId, setHighlightAnnotationId] = useState(null);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
-  // Ref for the div where the Adobe PDF viewer will be rendered
   const pdfViewerRef = useRef(null);
-  // Ref for the hidden file input element to trigger it programmatically
   const fileInputRef = useRef(null);
-  // Ref to store the Adobe Viewer API object once it's initialized
   const adobeApiRef = useRef(null);
 
-  // IMPORTANT: Replace with your actual Adobe PDF Embed API Client ID
-  const ADOBE_CLIENT_ID = "628c0718047f4a0eaaccc8a09c8e3130"; // Using a demo key
+  const ADOBE_CLIENT_ID = "628c0718047f4a0eaaccc8a09c8e3130"; // Replace with your Adobe Client ID
 
-  // Effect to load the Adobe PDF Embed API script
+  // --- EFFECTS (Original logic preserved) ---
   useEffect(() => {
     const loadAdobeAPI = () => {
       if (window.AdobeDC) {
@@ -71,27 +60,27 @@ const HeadingExtraction = () => {
     loadAdobeAPI();
   }, []);
 
-  // Effect to clean up created object URLs when the component unmounts to prevent memory leaks
   useEffect(() => {
     return () => {
       Object.values(pdfUrls).forEach((url) => URL.revokeObjectURL(url));
     };
   }, [pdfUrls]);
 
-  /**
-   * Finds and returns a file object from the `files` state by its name.
-   * @param {string} filename - The name of the file to find.
-   * @returns {File|undefined} The file object or undefined if not found.
-   */
+  useEffect(() => {
+    if (selectedPdf && isAdobeLoaded) {
+      initializeAdobeViewer(selectedPdf.file, selectedPdf.targetPage);
+    } else if (!selectedPdf && pdfViewerRef.current) {
+      pdfViewerRef.current.innerHTML = "";
+      adobeApiRef.current = null;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPdf, isAdobeLoaded]);
+
+  // --- CORE FUNCTIONS (Original logic preserved) ---
   const getFileByName = (filename) => {
     return files.find((file) => file.name === filename);
   };
-
-  /**
-   * Initializes the Adobe PDF viewer in the designated div.
-   * @param {File} file - The PDF file to display.
-   * @param {number} [targetPage=1] - The initial page number to display.
-   */
+  
   const initializeAdobeViewer = (file, targetPage = 1) => {
     if (!isAdobeLoaded || !window.AdobeDC || !file) {
       console.error("Adobe API not loaded or no file provided.");
@@ -99,7 +88,7 @@ const HeadingExtraction = () => {
     }
 
     if (pdfViewerRef.current) {
-      pdfViewerRef.current.innerHTML = ""; // Clear previous viewer instance
+      pdfViewerRef.current.innerHTML = "";
     }
 
     try {
@@ -125,7 +114,7 @@ const HeadingExtraction = () => {
 
       previewFilePromise
         .then((adobeViewer) => {
-          adobeApiRef.current = adobeViewer; // Store the viewer instance
+          adobeApiRef.current = adobeViewer;
           adobeViewer.getAPIs().then((apis) => {
             apis.gotoLocation(targetPage);
           });
@@ -139,20 +128,6 @@ const HeadingExtraction = () => {
     }
   };
 
-  // Effect to initialize or clear the PDF viewer when the selected PDF changes
-  useEffect(() => {
-    if (selectedPdf && isAdobeLoaded) {
-      initializeAdobeViewer(selectedPdf.file, selectedPdf.targetPage);
-    } else if (!selectedPdf && pdfViewerRef.current) {
-      pdfViewerRef.current.innerHTML = ""; // Clear the viewer content
-      adobeApiRef.current = null; // Clear the API ref
-    }
-  }, [selectedPdf, isAdobeLoaded]);
-
-  /**
-   * Adds new files to the file list, ensuring no duplicates are added.
-   * @param {File[]} newFiles - An array of files to add.
-   */
   const addFilesToList = (newFiles) => {
     const uniqueNewFiles = newFiles.filter(
       (newFile) => !files.some((existingFile) => existingFile.name === newFile.name)
@@ -170,22 +145,14 @@ const HeadingExtraction = () => {
     });
     setPdfUrls((prev) => ({ ...prev, ...newUrls }));
   };
-
-  /**
-   * Handles file selection from the file input.
-   * @param {React.ChangeEvent<HTMLInputElement>} e - The change event.
-   */
+  
   const handleFileChange = (e) => {
     if (e.target.files) {
       addFilesToList(Array.from(e.target.files));
-      e.target.value = null; // Reset input to allow re-selecting the same file
+      e.target.value = null;
     }
   };
 
-  /**
-   * Removes a specific file from the list.
-   * @param {string} fileNameToRemove - The name of the file to remove.
-   */
   const handleRemoveFile = (fileNameToRemove) => {
     const urlToRevoke = pdfUrls[fileNameToRemove];
     if (urlToRevoke) {
@@ -201,13 +168,6 @@ const HeadingExtraction = () => {
     });
   };
 
-  /**
-   * Handles clicking on a heading in the results list.
-   * It opens the corresponding PDF, navigates to the correct page,
-   * and highlights the heading text.
-   * @param {object} doc - The document object from the results.
-   * @param {object} heading - The heading object containing text and page number.
-   */
   const handleHeadingClick = async (doc, heading) => {
     const file = getFileByName(doc.filename);
     if (!file) {
@@ -216,10 +176,8 @@ const HeadingExtraction = () => {
     }
   
     const isSameDoc = selectedPdf?.file.name === file.name;
-    // Set the selected PDF, which triggers the viewer to open or update
     setSelectedPdf({ file, targetPage: heading.page + 1 });
   
-    // Use a small delay to ensure the viewer API is ready, especially when loading a new doc
     setTimeout(async () => {
       if (!adobeApiRef.current) {
         console.error("Adobe Viewer API is not available.");
@@ -229,32 +187,26 @@ const HeadingExtraction = () => {
       try {
         const apis = await adobeApiRef.current.getAPIs();
   
-        // 1. Remove the previous highlight if one exists
         if (highlightAnnotationId) {
           await apis.removeAnnotations([highlightAnnotationId]);
           setHighlightAnnotationId(null);
         }
   
-        // 2. Search for the heading text to get its location (quads)
         const searchResults = await apis.search(heading.text);
         
-        // Find the specific search result for the correct page
         const resultOnPage = searchResults.find(r => r.page_num === heading.page + 1);
   
         if (resultOnPage && resultOnPage.quads.length > 0) {
-          // 3. Add a new highlight annotation
           const [newAnnotation] = await apis.addAnnotations([
             {
               type: "HIGHLIGHT",
               page: heading.page + 1,
-              quadPoints: resultOnPage.quads[0], // Use the first bounding box
-              color: [255, 215, 0], // A nice gold color
+              quadPoints: resultOnPage.quads[0],
+              color: [255, 215, 0], // Yellow
               opacity: 0.5,
             },
           ]);
-          // 4. Store the new annotation's ID
           setHighlightAnnotationId(newAnnotation.id);
-          // 5. Go to the annotation location
           apis.gotoLocation(heading.page + 1, resultOnPage.quads[0][0], resultOnPage.quads[0][1]);
         } else {
           console.warn(
@@ -262,18 +214,14 @@ const HeadingExtraction = () => {
               heading.page + 1
             } to highlight.`
           );
-          apis.gotoLocation(heading.page + 1); // Fallback to just navigating to the page
+          apis.gotoLocation(heading.page + 1);
         }
       } catch (error) {
         console.error("Error during text highlighting:", error);
       }
-    }, isSameDoc ? 100 : 500); // Shorter delay if doc is already open
+    }, isSameDoc ? 100 : 500);
   };
-
-  /**
-   * Toggles the expanded/collapsed view of a document's outline.
-   * @param {string} filename - The filename of the document to toggle.
-   */
+  
   const toggleExpand = (filename) => {
     setExpandedDocs((prev) => ({
       ...prev,
@@ -281,10 +229,6 @@ const HeadingExtraction = () => {
     }));
   };
 
-  /**
-   * Handles drag events for the file drop zone.
-   * @param {React.DragEvent} e - The drag event.
-   */
   const handleDrag = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -295,10 +239,6 @@ const HeadingExtraction = () => {
     }
   };
 
-  /**
-   * Handles the drop event for the file drop zone.
-   * @param {React.DragEvent} e - The drop event.
-   */
   const handleDrop = (e) => {
     e.preventDefault();
     e.stopPropagation();
@@ -311,12 +251,9 @@ const HeadingExtraction = () => {
     }
   };
 
-  /**
-   * Handles the main upload and analysis process.
-   */
   const handleUpload = async () => {
     if (files.length === 0) {
-      setMessage("Please select at least one PDF file.");
+      setMessage("Please select at least one PDF file to analyze.");
       return;
     }
     const formData = new FormData();
@@ -324,9 +261,8 @@ const HeadingExtraction = () => {
 
     try {
       setIsLoading(true);
-      setMessage("Processing your documents...");
+      setMessage("Processing your documents... This may take a moment.");
 
-      // Replace with your actual API endpoint
       const response = await fetch("http://localhost:8000/api/pdf-outline", {
         method: "POST",
         body: formData,
@@ -354,16 +290,11 @@ const HeadingExtraction = () => {
       setCurrentPage("results");
     } catch (error) {
       console.error("Upload error:", error);
-      setMessage(`Failed to extract PDF content: ${error.message}`);
+      setMessage(`Failed to process documents: ${error.message}`);
       setIsLoading(false);
     }
   };
 
-  /**
-   * Opens a PDF in a new browser tab.
-   * @param {string} filename - The name of the file to open.
-   * @param {number} [page=0] - The page number to navigate to (0-indexed).
-   */
   const openPdfInNewTab = (filename, page = 0) => {
     const pdfUrl = pdfUrls[filename];
     if (pdfUrl) {
@@ -371,212 +302,163 @@ const HeadingExtraction = () => {
     }
   };
 
-  /**
-   * Calculates the indentation level for headings based on their level (H1, H2, etc.).
-   * @param {string} levelStr - The heading level string (e.g., "H2").
-   * @returns {string} The CSS margin-left value.
-   */
-  const getIndentLevel = (levelStr) => {
-    if (typeof levelStr !== "string") return "0px";
+  const getIndentLevelClass = (levelStr) => {
+    if (typeof levelStr !== 'string') return 'pl-0';
     const level = parseInt(levelStr.replace("H", ""), 10);
-    return isNaN(level) || level <= 1 ? "0px" : `${(level - 1) * 20}px`;
+    if (isNaN(level) || level <= 1) return 'pl-3';
+    return `pl-${(level - 1) * 4 + 3}`; // e.g., H2 -> pl-7, H3 -> pl-11
+  };
+  
+  const getHeadingTextStyle = (levelStr) => {
+    if (typeof levelStr !== 'string') return 'text-slate-600';
+    const level = parseInt(levelStr.replace("H", ""), 10);
+    switch (level) {
+      case 1: return 'text-slate-800 font-semibold text-sm';
+      case 2: return 'text-slate-700 font-medium text-sm';
+      default: return 'text-slate-600 text-sm';
+    }
   };
 
-  /**
-   * Resets the application state and returns to the upload page.
-   */
   const goBackToUpload = () => {
     setCurrentPage("upload");
     setSelectedPdf(null);
     setResults([]);
-    // Revoke old URLs before clearing files
     Object.values(pdfUrls).forEach((url) => URL.revokeObjectURL(url));
     setFiles([]);
     setPdfUrls({});
     setMessage("");
     setHighlightAnnotationId(null);
+    setIsChatbotOpen(false);
   };
   
-  /**
-   * Clears all selected files from the list.
-   */
   const clearAllFiles = () => {
       Object.values(pdfUrls).forEach(url => URL.revokeObjectURL(url));
       setFiles([]);
       setPdfUrls({});
+      setMessage("");
   }
+  
+  // --- UI COMPONENTS ---
 
-  /**
-   * The component for the initial file upload page.
-   */
-  const UploadPage = () => (
-    <div className="min-h-screen bg-slate-50 text-slate-800">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-20">
+  const UploadScreen = () => (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
+      <div className="w-full max-w-3xl">
         <header className="text-center mb-10">
-          <div className="inline-flex items-center justify-center bg-blue-600 rounded-xl p-3 mb-4">
-             <FileText className="w-8 h-8 text-white" />
+          <div className="inline-flex items-center justify-center bg-indigo-100 text-indigo-600 rounded-xl p-3 mb-4">
+            <ListTree className="w-10 h-10" />
           </div>
-          <h1 className="text-4xl font-bold tracking-tight text-slate-900">
-            PDF Document Analyzer
+          <h1 className="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900">
+            Document Outline Extractor
           </h1>
-          <p className="mt-3 text-lg text-slate-600">
-            Upload your PDFs to automatically extract their heading structure.
+          <p className="mt-3 text-lg text-slate-600 max-w-xl mx-auto">
+            Instantly generate a clickable table of contents for any PDF document.
           </p>
         </header>
 
-        <main className="bg-white rounded-2xl shadow-xl shadow-slate-200/60 border border-slate-200">
-          <div className="p-8">
-            <div
-              className={`relative border-2 border-dashed rounded-xl p-10 text-center transition-all duration-300 ${
-                dragActive
-                  ? "border-blue-500 bg-blue-50"
-                  : "border-slate-300 hover:border-slate-400"
-              }`}
-              onDragEnter={handleDrag}
-              onDragLeave={handleDrag}
-              onDragOver={handleDrag}
-              onDrop={handleDrop}
-            >
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="application/pdf"
-                multiple
-                onChange={handleFileChange}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-                id="file-upload-input"
-              />
-              <div className="flex flex-col items-center space-y-4">
-                <div
-                  className={`w-16 h-16 rounded-full flex items-center justify-center transition-colors duration-300 ${
-                    dragActive ? "bg-blue-100" : "bg-slate-100"
-                  }`}
-                >
-                  <Upload
-                    className={`w-8 h-8 transition-colors duration-300 ${
-                      dragActive ? "text-blue-600" : "text-slate-500"
-                    }`}
-                  />
-                </div>
-                <div>
-                  <p className="text-lg font-semibold text-slate-900">
-                    Drop PDFs here or{" "}
-                    <span className="text-blue-600">browse files</span>
-                  </p>
-                  <p className="text-sm text-slate-500 mt-1">
-                    Maximum file size: 50MB
-                  </p>
-                </div>
-              </div>
+        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/60 border border-slate-200">
+          <div
+            className={`relative p-8 border-2 border-dashed rounded-t-2xl transition-all duration-300 ${
+              dragActive ? "border-indigo-500 bg-indigo-50" : "border-slate-300 hover:border-slate-400"
+            }`}
+            onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+          >
+            <input
+              ref={fileInputRef} type="file" accept="application/pdf" multiple
+              onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+            />
+            <div className="flex flex-col items-center pointer-events-none">
+              <FileUp className={`w-12 h-12 mb-4 transition-colors ${dragActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+              <p className="text-lg font-semibold text-slate-700">
+                Drag & drop PDFs here, or{' '}
+                <span className="text-indigo-600 font-bold">browse your files</span>
+              </p>
+              <p className="text-sm text-slate-500 mt-1">Supports multiple PDF files up to 50MB each.</p>
             </div>
-
-            {files.length > 0 && (
-              <div className="mt-8">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-lg font-medium text-slate-900">
-                    Selected Files ({files.length})
-                  </h3>
-                  <div className="flex items-center space-x-4">
-                    <button
-                      onClick={() => fileInputRef.current?.click()}
-                      className="flex items-center space-x-2 text-sm text-blue-600 hover:text-blue-800 font-semibold"
-                    >
-                      <PlusCircle className="w-4 h-4" />
-                      <span>Add More</span>
-                    </button>
-                    <button
-                      onClick={clearAllFiles}
-                      className="text-sm text-slate-500 hover:text-red-600 font-medium"
-                    >
-                      Clear all
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-3 max-h-60 overflow-y-auto pr-2">
-                  {files.map((file, idx) => (
-                    <div
-                      key={idx}
-                      className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200"
-                    >
-                      <div className="flex items-center space-x-3 min-w-0">
-                        <FileText className="w-5 h-5 text-red-500 flex-shrink-0" />
-                        <div className="min-w-0">
-                          <p className="font-medium text-slate-800 truncate">
-                            {file.name}
-                          </p>
-                          <p className="text-xs text-slate-500">
-                            {(file.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
-                        <button
-                          onClick={() => openPdfInNewTab(file.name)}
-                          className="p-1.5 text-slate-400 hover:text-blue-600 transition-colors rounded-md hover:bg-slate-200"
-                          title="Preview PDF in New Tab"
-                        >
-                          <Eye className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleRemoveFile(file.name)}
-                          className="p-1.5 text-slate-400 hover:text-red-600 transition-colors rounded-md hover:bg-slate-200"
-                          title="Remove File"
-                        >
-                          <X className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
 
-          <div className="p-6 bg-slate-50/50 border-t border-slate-200 rounded-b-2xl">
-             {message && !isLoading && (
-              <div className={`mt-2 mb-6 p-3 rounded-lg border flex items-center space-x-3 text-sm ${message.includes('Failed') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-green-50 border-green-200 text-green-800'}`}>
-                {message.includes('Failed') ? <AlertCircle className="w-5 h-5" /> : <CheckCircle className="w-5 h-5" />}
-                <span>{message}</span>
+          {files.length > 0 && (
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-md font-semibold text-slate-800">
+                  Upload Queue ({files.length})
+                </h3>
+                <div className="flex items-center space-x-4">
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="flex items-center space-x-2 text-sm text-indigo-600 hover:text-indigo-800 font-semibold"
+                  >
+                    <PlusCircle className="w-4 h-4" />
+                    <span>Add More</span>
+                  </button>
+                  <button onClick={clearAllFiles} className="text-sm text-slate-500 hover:text-red-600 font-medium">
+                    Clear All
+                  </button>
+                </div>
+              </div>
+              <div className="space-y-3 max-h-64 overflow-y-auto pr-2 -mr-2">
+                {files.map((file) => (
+                  <div key={file.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200/80">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <FileText className="w-6 h-6 text-red-500 flex-shrink-0" />
+                      <div className="min-w-0">
+                        <p className="font-semibold text-slate-800 truncate text-sm">{file.name}</p>
+                        <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
+                      <button onClick={() => openPdfInNewTab(file.name)} className="p-1.5 text-slate-500 hover:text-indigo-600 transition-colors rounded-md hover:bg-slate-200" title="Preview PDF">
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                      <button onClick={() => handleRemoveFile(file.name)} className="p-1.5 text-slate-500 hover:text-red-600 transition-colors rounded-md hover:bg-slate-200" title="Remove File">
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="p-6 bg-slate-50/70 border-t border-slate-200 rounded-b-2xl">
+            {message && !isLoading && (
+              <div className={`mb-4 p-3 rounded-lg border flex items-start space-x-3 text-sm ${message.includes('Failed') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-green-50 border-green-200 text-green-800'}`}>
+                {message.includes('Failed') ? <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <CheckCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
+                <span className="leading-snug">{message}</span>
               </div>
             )}
-            <div className="flex justify-center">
-              <button
+             <button
                 onClick={handleUpload}
                 disabled={files.length === 0 || isLoading}
-                className="w-full sm:w-auto px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-3 text-base shadow-lg shadow-blue-500/30 hover:shadow-xl hover:shadow-blue-500/30"
+                className="w-full h-12 px-6 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-3 text-base shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40"
               >
                 {isLoading ? (
                   <>
                     <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Processing...</span>
+                    <span>Analyzing...</span>
                   </>
                 ) : (
                   <>
-                    <Upload className="w-5 h-5" />
-                    <span>Analyze Documents</span>
+                    <FileCheck2 className="w-5 h-5" />
+                    <span>Generate Outlines</span>
                   </>
                 )}
               </button>
-            </div>
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );
 
-  /**
-   * The component for displaying the analysis results and the PDF viewer.
-   */
-  const ResultsPage = () => (
-    <div className="h-screen bg-slate-100 flex flex-col">
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-20 flex-shrink-0">
-        <div className="max-w-screen-2xl mx-auto px-4 sm:px-6 lg:px-8">
+  const ResultsScreen = () => (
+    <div className="h-screen bg-slate-50 flex flex-col">
+       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 flex-shrink-0">
+        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-3">
-              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                <FileText className="w-5 h-5 text-white" />
+              <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center">
+                <ListTree className="w-5 h-5 text-white" />
               </div>
-              <h1 className="text-xl font-semibold text-slate-900">
+              <h1 className="text-xl font-semibold text-slate-900 hidden sm:block">
                 Analysis Results
               </h1>
             </div>
@@ -591,112 +473,79 @@ const HeadingExtraction = () => {
         </div>
       </header>
 
-      <main className="flex-1 flex gap-6 p-6 min-h-0">
-        {/* Left Panel: Results List */}
-        <div className="w-full lg:w-1/2 flex-shrink-0 overflow-y-auto space-y-4 pr-2">
-          {results.map((doc, idx) => (
-            <div
-              key={idx}
-              className="bg-white rounded-xl shadow-md shadow-slate-200/50 border border-slate-200"
-            >
-              <div className="p-4 border-b border-slate-100">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="text-base font-semibold text-slate-800 mb-1 truncate">
-                      {doc.filename}
-                    </h3>
-                    <div className="flex items-center flex-wrap gap-x-3 text-xs text-slate-500">
-                      <span>{doc.outline?.outline?.length || 0} headings found</span>
-                    </div>
-                  </div>
-                  <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
-                    <button
-                      onClick={() => toggleExpand(doc.filename)}
-                      className="flex items-center space-x-1 text-xs text-slate-600 hover:text-blue-600 transition px-2 py-1 rounded hover:bg-slate-100 font-medium"
-                    >
-                      {expandedDocs[doc.filename] ? (
-                        <ChevronDown className="w-4 h-4" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4" />
-                      )}
-                      <span>{expandedDocs[doc.filename] ? "Hide" : "Show"}</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {expandedDocs[doc.filename] && (
-                <div className="p-2">
-                  {doc.outline?.outline?.length > 0 ? (
-                    <div className="space-y-1 p-2 max-h-[60vh] overflow-y-auto">
-                      {doc.outline.outline.map((heading, hIdx) => (
-                        <button
-                          key={hIdx}
-                          onClick={() => handleHeadingClick(doc, heading)}
-                          className="w-full flex items-center py-2 px-3 rounded-md hover:bg-blue-50 transition-colors group text-left"
-                          style={{ marginLeft: getIndentLevel(heading.level) }}
-                        >
-                          <div className="flex-1 flex justify-between items-center gap-4 min-w-0">
-                            <span
-                              className={`truncate font-medium group-hover:text-blue-700 transition-colors ${
-                                heading.level === "H1"
-                                  ? "text-slate-800 text-sm"
-                                  : "text-slate-600 text-sm"
-                              }`}
-                            >
-                              {heading.text}
-                            </span>
-                            <div className="flex items-center gap-1 text-xs text-slate-400 group-hover:text-blue-500 transition-colors flex-shrink-0">
-                              <span>P.{heading.page + 1}</span>
-                            </div>
-                          </div>
-                        </button>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="text-center py-10 px-4">
-                        <div className="w-12 h-12 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                            <FileText className="w-6 h-6 text-slate-400" />
-                        </div>
-                        <p className="text-slate-500 text-sm font-medium">No headings found in this document.</p>
-                    </div>
-                  )}
-                </div>
-              )}
+      <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0">
+        {/* Left Panel: Document Outlines */}
+        <aside className="w-full lg:w-1/2 flex-shrink-0 flex flex-col bg-white rounded-xl shadow-md shadow-slate-200/50 border border-slate-200 overflow-hidden">
+            <div className="p-4 border-b border-slate-200 flex-shrink-0">
+                <h2 className="text-lg font-semibold text-slate-800">Document Outlines</h2>
+                <p className="text-sm text-slate-500">{results.length} document(s) analyzed.</p>
             </div>
-          ))}
-        </div>
+            <div className="overflow-y-auto space-y-2 p-2">
+            {results.map((doc, idx) => (
+                <div key={idx} className="bg-slate-50/80 rounded-lg">
+                <button
+                    onClick={() => toggleExpand(doc.filename)}
+                    className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-100 transition-colors rounded-lg"
+                >
+                    <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-semibold text-slate-800 truncate">{doc.filename}</h3>
+                        <p className="text-xs text-slate-500">{doc.outline?.outline?.length || 0} headings</p>
+                    </div>
+                    <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-300 ${expandedDocs[doc.filename] ? 'rotate-180' : ''}`} />
+                </button>
+                {expandedDocs[doc.filename] && (
+                    <div className="pb-2 px-1">
+                    {doc.outline?.outline?.length > 0 ? (
+                        <div className="space-y-0.5 mt-1 border-t border-slate-200 pt-2">
+                        {doc.outline.outline.map((heading, hIdx) => (
+                            <button
+                            key={hIdx}
+                            onClick={() => handleHeadingClick(doc, heading)}
+                            className={`w-full flex items-start text-left py-1.5 rounded-md hover:bg-indigo-50 transition-colors group ${getIndentLevelClass(heading.level)}`}
+                            >
+                            <span className={`flex-1 truncate group-hover:text-indigo-700 transition-colors ${getHeadingTextStyle(heading.level)}`}>
+                                {heading.text}
+                            </span>
+                            <span className="ml-2 text-xs text-slate-400 font-mono group-hover:text-indigo-500 transition-colors pr-2">
+                                P.{heading.page + 1}
+                            </span>
+                            </button>
+                        ))}
+                        </div>
+                    ) : (
+                        <div className="text-center py-6 px-4">
+                            <FileX2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
+                            <p className="text-slate-500 text-sm font-medium">No headings found.</p>
+                        </div>
+                    )}
+                    </div>
+                )}
+                </div>
+            ))}
+            </div>
+        </aside>
 
         {/* Right Panel: PDF Viewer */}
-        <div className="hidden lg:flex w-1/2 bg-white rounded-xl shadow-lg shadow-slate-200/60 border border-slate-200 flex-col overflow-hidden">
+        <section className="w-full lg:w-1/2 flex bg-white rounded-xl shadow-lg shadow-slate-200/60 border border-slate-200 flex-col overflow-hidden">
           {selectedPdf ? (
             <>
-              <div className="p-3 border-b border-slate-200 flex items-center justify-between flex-shrink-0">
-                  <h3 className="text-sm font-semibold text-slate-800 truncate px-2">
-                    {selectedPdf.file.name}
-                  </h3>
+              <div className="p-3 border-b border-slate-200 flex items-center justify-between flex-shrink-0 bg-slate-50/50">
+                  <h3 className="text-sm font-semibold text-slate-800 truncate px-2">{selectedPdf.file.name}</h3>
                 <button
-                  onClick={() => {
-                    setSelectedPdf(null);
-                    setHighlightAnnotationId(null);
-                  }}
-                  className="p-1.5 text-slate-500 hover:text-slate-800 transition-colors rounded-md hover:bg-slate-100"
+                  onClick={() => { setSelectedPdf(null); setHighlightAnnotationId(null); }}
+                  className="p-1.5 text-slate-500 hover:text-slate-800 transition-colors rounded-md hover:bg-slate-200"
                   aria-label="Close PDF Viewer"
                 >
                   <X className="w-4 h-4" />
                 </button>
               </div>
-              <div className="flex-1 bg-slate-50 min-h-0">
-                <div
-                  id="adobe-pdf-viewer"
-                  ref={pdfViewerRef}
-                  className="w-full h-full"
-                >
+              <div className="flex-1 bg-slate-100 min-h-0">
+                <div id="adobe-pdf-viewer" ref={pdfViewerRef} className="w-full h-full">
                   {!isAdobeLoaded && (
                     <div className="flex items-center justify-center h-full">
-                      <div className="text-center">
-                        <Loader2 className="mx-auto h-8 w-8 text-blue-600 mb-3 animate-spin" />
-                        <p className="text-slate-600 font-medium">Loading PDF Viewer...</p>
+                      <div className="text-center text-slate-600">
+                        <Loader2 className="mx-auto h-8 w-8 text-indigo-600 mb-3 animate-spin" />
+                        <p className="font-medium">Loading PDF Viewer...</p>
                       </div>
                     </div>
                   )}
@@ -706,20 +555,38 @@ const HeadingExtraction = () => {
           ) : (
             <div className="flex items-center justify-center h-full bg-slate-50/50 p-8">
                 <div className="text-center">
-                    <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-5 border-4 border-slate-200">
-                        <BookOpen className="w-10 h-10 text-slate-400" />
+                    <div className="w-24 h-24 bg-white rounded-full flex items-center justify-center mx-auto mb-6 border-4 border-slate-200">
+                        <BookOpen className="w-12 h-12 text-slate-400" />
                     </div>
-                    <h3 className="text-lg font-semibold text-slate-800">Document Viewer</h3>
-                    <p className="text-slate-500 mt-2 max-w-xs mx-auto">Click on a heading from the list on the left to view the document and highlight its location.</p>
+                    <h3 className="text-xl font-semibold text-slate-800">Document Viewer</h3>
+                    <p className="text-slate-500 mt-2 max-w-xs mx-auto">
+                        Select a heading from the list to preview the document here.
+                    </p>
                 </div>
             </div>
           )}
-        </div>
+        </section>
       </main>
+      
+      {/* Floating Chatbot */}
+      {files.length > 0 && !isChatbotOpen && (
+        <button
+          onClick={() => setIsChatbotOpen(true)}
+          className="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-xl hover:bg-indigo-700 transition-all z-40 transform hover:scale-110"
+          aria-label="Open Chat"
+        >
+          <MessageCircle className="w-8 h-8" />
+        </button>
+      )}
+      <FloatingChatbot 
+        files={files} 
+        isOpen={isChatbotOpen} 
+        onClose={() => setIsChatbotOpen(false)} 
+      />
     </div>
   );
 
-  return currentPage === "upload" ? <UploadPage /> : <ResultsPage />;
+  return currentPage === "upload" ? <UploadScreen /> : <ResultsScreen />;
 };
 
 export default HeadingExtraction;

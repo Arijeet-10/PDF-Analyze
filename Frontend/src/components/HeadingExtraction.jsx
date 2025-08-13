@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import FloatingChatbot from "./FloatingChatbot"; // Make sure path is correct
 
+
 // A professional, modern UI for the PDF Document Analyzer
 const HeadingExtraction = () => {
   // --- STATE AND REFS ---
@@ -41,7 +42,8 @@ const HeadingExtraction = () => {
   const fileInputRef = useRef(null);
   const adobeApiRef = useRef(null);
 
-  const ADOBE_CLIENT_ID = "628c0718047f4a0eaaccc8a09c8e3130"; // Replace with your Adobe Client ID
+  // const ADOBE_CLIENT_ID = process.env.REACT_APP_ADOBE_CLIENT_ID_LH; // For local host
+  const ADOBE_CLIENT_ID = process.env.REACT_APP_ADOBE_CLIENT_ID_PROD; // For production
 
   // --- EFFECTS ---
   useEffect(() => {

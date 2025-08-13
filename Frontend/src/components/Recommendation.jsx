@@ -22,7 +22,8 @@ const Recommendation = () => {
   const fileInputRef = useRef(null);
 
   // --- CONFIGURATION ---
-  const ADOBE_CLIENT_ID = "628c0718047f4a0eaaccc8a09c8e3130";
+  const ADOBE_CLIENT_ID = process.env.REACT_APP_ADOBE_CLIENT_ID_PROD; // For production
+  // const ADOBE_CLIENT_ID = process.env.REACT_APP_ADOBE_CLIENT_ID_LH; // For local host
 
   // --- ADOBE PDF EMBED API SCRIPT LOADING ---
   useEffect(() => {

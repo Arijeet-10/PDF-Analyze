@@ -42,8 +42,8 @@ const HeadingExtraction = () => {
   const fileInputRef = useRef(null);
   const adobeApiRef = useRef(null);
 
-  // const ADOBE_CLIENT_ID = process.env.REACT_APP_ADOBE_CLIENT_ID_LH; // For local host
-  const ADOBE_CLIENT_ID = process.env.REACT_APP_ADOBE_CLIENT_ID_PROD; // For production
+  // const ADOBE_CLIENT_ID = import.meta.env.VITE_ADOBE_CLIENT_ID_LH; // For local host
+  const ADOBE_CLIENT_ID = import.meta.env.VITE_ADOBE_CLIENT_ID_PROD; // For production
 
   // --- EFFECTS ---
   useEffect(() => {

@@ -176,7 +176,7 @@ export default function FactsWindow({ isOpen, onClose, files }) {
 
         try {
           // const res = await fetch('http://localhost:5000/facts', {
-          const res = await fetch('https://pdf-analyze-features-backend.onrender.com/facts', {
+          const res = await fetch('https://pdf-analyze-754j.vercel.app/facts', {
             method: 'POST',
             body: formData,
           });

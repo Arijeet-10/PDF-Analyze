@@ -113,7 +113,7 @@ const FloatingChatbot = ({ files = [], isOpen, onClose }) => {
 
     try {
       // const res = await fetch('http://localhost:5000/ask-pdf', { method: 'POST', body: formData });
-      const res = await fetch('https://pdf-analyze-features-backend.onrender.com/ask-pdf', { method: 'POST', body: formData });
+      const res = await fetch('https://pdf-analyze-754j.vercel.app/ask-pdf', { method: 'POST', body: formData });
       if (!res.ok) {
         const errorData = await res.json();
         throw new Error(errorData.error || 'The server returned an error.');
@@ -140,7 +140,7 @@ const FloatingChatbot = ({ files = [], isOpen, onClose }) => {
 
     try {
       // const res = await fetch('http://localhost:5000/generate-podcast', { method: 'POST', body: formData });
-      const res = await fetch('https://pdf-analyze-features-backend.onrender.com/generate-podcast', { method: 'POST', body: formData });
+      const res = await fetch('https://pdf-analyze-754j.vercel.app/generate-podcast', { method: 'POST', body: formData });
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data = await res.json();
       if (data.audioContent) {

@@ -1,5 +1,10 @@
-pdfplumber
 pandas
+pdfplumber
 langdetect
-pypdf
+fastapi
 PyMuPDF
+nltk
+sentence-transformers
+werkzeug
+uvicorn
+python-multipart

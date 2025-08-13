@@ -487,55 +487,82 @@ const HeadingExtraction = () => {
 
       <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0">
         {/* Left Panel: Document Outlines */}
-        <aside className="w-full lg:w-1/2 flex-shrink-0 flex flex-col bg-white rounded-xl shadow-md shadow-slate-200/50 border border-slate-200 overflow-hidden">
-            <div className="p-4 border-b border-slate-200 flex-shrink-0">
-                <h2 className="text-lg font-semibold text-slate-800">Document Outlines</h2>
-                <p className="text-sm text-slate-500">{results.length} document(s) analyzed.</p>
+        <aside className="w-full lg:w-1/2 flex-shrink-0 flex flex-col bg-gradient-to-br from-white via-slate-50/30 to-slate-100/20 rounded-2xl shadow-xl shadow-slate-900/5 border border-slate-200/60 backdrop-blur-sm overflow-hidden">
+    <div className="p-6 border-b border-slate-200/70 flex-shrink-0 bg-gradient-to-r from-slate-50/80 to-white/90">
+        <div className="flex items-center gap-3">
+            <div className="w-2 h-8 bg-gradient-to-b from-indigo-500 to-purple-600 rounded-full"></div>
+            <div>
+                <h2 className="text-xl font-bold bg-gradient-to-r from-slate-800 to-slate-600 bg-clip-text text-transparent">
+                    Document Outlines
+                </h2>
+                <p className="text-sm text-slate-500 font-medium">
+                    {results.length} document{results.length !== 1 ? 's' : ''} analyzed
+                </p>
             </div>
-            <div className="overflow-y-auto space-y-2 p-2">
-            {results.map((doc, idx) => (
-                <div key={idx} className="bg-slate-50/80 rounded-lg">
+        </div>
+    </div>
+    
+    <div className="overflow-y-auto space-y-3 p-4">
+        {results.map((doc, idx) => (
+            <div key={idx} className="group bg-white/60 backdrop-blur-sm rounded-xl border border-slate-200/50 shadow-sm hover:shadow-md hover:shadow-slate-200/50 transition-all duration-300 hover:border-slate-300/60">
                 <button
                     onClick={() => toggleExpand(doc.filename)}
-                    className="w-full flex items-center justify-between p-3 text-left hover:bg-slate-100 transition-colors rounded-lg"
+                    className="w-full flex items-center justify-between p-4 text-left hover:bg-slate-50/50 transition-all duration-200 rounded-xl"
                 >
-                    <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-semibold text-slate-800 truncate">{doc.filename}</h3>
-                        <p className="text-xs text-slate-500">{doc.outline?.outline?.length || 0} headings</p>
+                    <div className="flex-1 min-w-0 flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-indigo-100 to-purple-100 flex items-center justify-center flex-shrink-0">
+                            <svg className="w-5 h-5 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <h3 className="font-semibold text-slate-800 truncate text-base group-hover:text-indigo-700 transition-colors">
+                                {doc.filename}
+                            </h3>
+                            <div className="flex items-center gap-2 mt-1">
+                                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                                    {doc.outline?.outline?.length || 0} headings
+                                </span>
+                            </div>
+                        </div>
                     </div>
-                    <ChevronDown className={`w-5 h-5 text-slate-500 transition-transform duration-300 ${expandedDocs[doc.filename] ? 'rotate-180' : ''}`} />
+                    <ChevronDown className={`w-5 h-5 text-slate-400 transition-all duration-300 group-hover:text-indigo-600 ${expandedDocs[doc.filename] ? 'rotate-180' : ''}`} />
                 </button>
+                
                 {expandedDocs[doc.filename] && (
-                    <div className="pb-2 px-1">
-                    {doc.outline?.outline?.length > 0 ? (
-                        <div className="space-y-0.5 mt-1 border-t border-slate-200 pt-2">
-                        {doc.outline.outline.map((heading, hIdx) => (
-                            <button
-                            key={hIdx}
-                            onClick={() => handleHeadingClick(doc, heading)}
-                            className={`w-full flex items-start text-left py-1.5 rounded-md hover:bg-indigo-50 transition-colors group ${getIndentLevelClass(heading.level)}`}
-                            >
-                            <span className={`flex-1 truncate group-hover:text-indigo-700 transition-colors ${getHeadingTextStyle(heading.level)}`}>
-                                {heading.text}
-                            </span>
-                            <span className="ml-2 text-xs text-slate-400 font-mono group-hover:text-indigo-500 transition-colors pr-2">
-                                P.{heading.page + 1}
-                            </span>
-                            </button>
-                        ))}
-                        </div>
-                    ) : (
-                        <div className="text-center py-6 px-4">
-                            <FileX2 className="w-8 h-8 text-slate-400 mx-auto mb-2" />
-                            <p className="text-slate-500 text-sm font-medium">No headings found.</p>
-                        </div>
-                    )}
+                    <div className="px-4 pb-4">
+                        {doc.outline?.outline?.length > 0 ? (
+                            <div className="space-y-1 border-t border-slate-200/60 pt-4">
+                                {doc.outline.outline.map((heading, hIdx) => (
+                                    <button
+                                        key={hIdx}
+                                        onClick={() => handleHeadingClick(doc, heading)}
+                                        className={`w-full flex items-center justify-between text-left py-2.5 px-3 rounded-lg hover:bg-indigo-50/80 hover:border-indigo-200/50 border border-transparent transition-all duration-200 group/heading ${getIndentLevelClass(heading.level)}`}
+                                    >
+                                        <span className={`flex-1 truncate group-hover/heading:text-indigo-700 transition-colors ${getHeadingTextStyle(heading.level)}`}>
+                                            {heading.text}
+                                        </span>
+                                        <span className="ml-3 px-2 py-1 text-xs text-slate-500 bg-slate-100/80 rounded-md font-mono group-hover/heading:text-indigo-600 group-hover/heading:bg-indigo-100/80 transition-all duration-200">
+                                            P.{heading.page + 1}
+                                        </span>
+                                    </button>
+                                ))}
+                            </div>
+                        ) : (
+                            <div className="text-center py-8 px-4 border-t border-slate-200/60">
+                                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
+                                    <FileX2 className="w-8 h-8 text-slate-400" />
+                                </div>
+                                <p className="text-slate-500 text-sm font-medium">No headings found</p>
+                                <p className="text-slate-400 text-xs mt-1">This document doesn't contain any structured headings</p>
+                            </div>
+                        )}
                     </div>
                 )}
-                </div>
-            ))}
             </div>
-        </aside>
+        ))}
+    </div>
+</aside>
 
         {/* Right Panel: PDF Viewer */}
         <section className="w-full lg:w-1/2 flex bg-white rounded-xl shadow-lg shadow-slate-200/60 border border-slate-200 flex-col overflow-hidden">

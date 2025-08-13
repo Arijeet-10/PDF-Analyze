@@ -1,5 +1,59 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader2, FileText, Sparkles, Zap, AlertCircle } from 'lucide-react';
+import { X, Loader2, FileText, Sparkles, AlertCircle, Lightbulb } from 'lucide-react';
+
+// A dedicated component for displaying different states (loading, error, empty)
+const StatusDisplay = ({ icon: Icon, title, message }) => (
+  <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 p-8">
+    <Icon className="w-12 h-12 mb-4 text-gray-400" />
+    <h4 className="text-lg font-semibold text-gray-700">{title}</h4>
+    <p className="text-sm">{message}</p>
+  </div>
+);
+
+// A component for a single fact item, enhancing text decoration
+const FactListItem = ({ children }) => (
+  <li className="flex items-start gap-3 py-2 border-b border-gray-200/60 last:border-b-0">
+    <div className="w-5 h-5 flex-shrink-0 mt-0.5">
+        <Lightbulb className="w-5 h-5 text-blue-500/80" />
+    </div>
+    <span className="text-gray-700 text-sm leading-relaxed">{children}</span>
+  </li>
+);
+
+// A card to neatly display facts for a single file
+const FactCard = ({ filename, facts }) => {
+    // Check if the facts array contains a known processing error message
+    const hasErrorFact = facts.length === 1 && (
+        facts[0].includes("Could not process") || 
+        facts[0].includes("does not contain enough text")
+    );
+
+    return (
+        <div className="bg-white/70 backdrop-blur-sm rounded-xl border border-black/5 shadow-sm transition-all hover:shadow-md">
+            <div className="px-5 py-3 border-b border-gray-200/60">
+                <h4 className="font-semibold text-sm text-gray-800 truncate flex items-center gap-2.5">
+                    <FileText className="w-4 h-4 text-gray-500 flex-shrink-0" />
+                    {filename}
+                </h4>
+            </div>
+            <div className="p-5">
+                {hasErrorFact ? (
+                    <div className="flex items-center text-sm text-orange-700 bg-orange-50 p-3 rounded-lg">
+                        <AlertCircle className="w-5 h-5 mr-3 flex-shrink-0" />
+                        <p>{facts[0]}</p>
+                    </div>
+                ) : (
+                    <ul className="space-y-1">
+                        {facts.map((fact, fIndex) => (
+                            <FactListItem key={fIndex}>{fact}</FactListItem>
+                        ))}
+                    </ul>
+                )}
+            </div>
+        </div>
+    );
+};
+
 
 export default function FactsWindow({ isOpen, onClose, files }) {
   const [facts, setFacts] = useState([]);
@@ -25,7 +79,7 @@ export default function FactsWindow({ isOpen, onClose, files }) {
 
           if (!res.ok) {
             const errData = await res.json();
-            throw new Error(errData.error || 'Failed to fetch facts.');
+            throw new Error(errData.error || 'Failed to fetch facts from the server.');
           }
 
           const data = await res.json();
@@ -44,27 +98,63 @@ export default function FactsWindow({ isOpen, onClose, files }) {
 
   if (!isOpen) return null;
 
-  // Helper component for individual fact list items for a cleaner look
-  const FactListItem = ({ children }) => (
-    <li className="flex items-start">
-      <Zap className="w-4 h-4 mr-3 mt-1 text-amber-500 flex-shrink-0" />
-      <span className="text-slate-600 leading-relaxed">{children}</span>
-    </li>
-  );
+  const renderContent = () => {
+    if (loading) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full text-gray-600">
+          <Loader2 className="w-10 h-10 mb-4 text-blue-500 animate-spin" />
+          <p className="text-lg font-medium">Analyzing Documents...</p>
+          <p className="text-sm text-gray-400">Extracting key information, please wait.</p>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <StatusDisplay 
+          icon={AlertCircle}
+          title="An Error Occurred"
+          message={error}
+        />
+      );
+    }
+    
+    if (files.length === 0) {
+        return (
+            <StatusDisplay 
+                icon={FileText}
+                title="No Documents Provided"
+                message="Please upload one or more PDF files to generate interesting facts."
+            />
+        );
+    }
+
+    if (facts.length > 0) {
+      return (
+        <div className="space-y-4">
+          {facts.map((item, index) => (
+            <FactCard key={index} filename={item.filename} facts={item.facts} />
+          ))}
+        </div>
+      );
+    }
+
+    return null; // Default empty state after loading if no facts are returned
+  };
 
   return (
-    <div className="fixed bottom-20 right-6 w-96 max-w-[calc(100vw-3rem)] bg-white/80 backdrop-blur-md shadow-2xl rounded-2xl overflow-hidden z-50 border border-slate-200/80">
+    <div className="fixed bottom-6 right-6 w-[480px] max-w-[calc(100vw-3rem)] bg-white/60 backdrop-blur-2xl shadow-2xl rounded-3xl flex flex-col h-[80vh] max-h-[700px] z-50 border border-black/5 font-sans overflow-hidden">
       {/* Window Header */}
-      <div className="bg-slate-800 px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center space-x-3">
-          <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center">
-            <Sparkles className="w-4 h-4 text-cyan-400" />
+      <div className="px-6 py-4 flex items-center justify-between border-b border-gray-200/70 flex-shrink-0">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center shadow-md">
+            <Sparkles className="w-5 h-5 text-white/90" />
           </div>
-          <h3 className="text-white font-semibold text-lg">Interesting Facts</h3>
+          <h3 className="text-gray-800 font-bold text-xl">Key Facts</h3>
         </div>
         <button 
           onClick={onClose} 
-          className="text-slate-400 hover:text-white transition-colors p-1 rounded-full hover:bg-slate-700" 
+          className="text-gray-400 hover:text-gray-800 transition-colors p-1.5 rounded-full hover:bg-gray-500/10" 
           title="Close"
         >
           <X className="w-5 h-5" />
@@ -72,74 +162,8 @@ export default function FactsWindow({ isOpen, onClose, files }) {
       </div>
 
       {/* Window Content */}
-      <div className="h-80 overflow-y-auto p-6 space-y-4 bg-slate-50">
-        {/* Loading State */}
-        {loading && (
-          <div className="flex flex-col items-center justify-center h-full text-slate-500">
-            <Loader2 className="w-10 h-10 mb-3 text-slate-400 animate-spin" />
-            <p className="text-sm font-medium">Analyzing documents...</p>
-            <p className="text-xs text-slate-400">Extracting key information.</p>
-          </div>
-        )}
-
-        {/* Global Error State */}
-        {!loading && error && (
-          <div className="flex flex-col items-center justify-center h-full text-red-600 bg-red-50 p-4 rounded-lg">
-             <AlertCircle className="w-8 h-8 mb-2" />
-            <p className="font-bold">An Error Occurred</p>
-            <p className="text-sm text-center">{error}</p>
-          </div>
-        )}
-        
-        {/* Empty State (No files uploaded) */}
-        {!loading && !error && files.length === 0 && (
-           <div className="flex flex-col items-center justify-center h-full text-slate-500">
-            <FileText className="w-10 h-10 mb-3 text-slate-400" />
-            <p className="text-sm font-medium">No documents</p>
-            <p className="text-xs text-slate-400 text-center">Upload PDFs to generate facts.</p>
-          </div>
-        )}
-
-        {/* Success State (Displaying Facts) */}
-        {!loading && !error && facts.length > 0 && (
-          <div className="space-y-4">
-            {facts.map((item, index) => {
-               // Check if the facts array contains a known processing error message
-               const hasErrorFact = item.facts.length === 1 && (
-                 item.facts[0].includes("Could not process") || 
-                 item.facts[0].includes("does not contain enough text")
-               );
-
-              return (
-                <div key={index} className="bg-white rounded-lg shadow-sm border border-slate-200/80 overflow-hidden">
-                  {/* Card Header with Filename */}
-                  <div className="bg-slate-100 px-4 py-2 border-b border-slate-200">
-                    <h4 className="font-medium text-sm text-slate-700 truncate flex items-center">
-                      <FileText className="w-4 h-4 mr-2 text-slate-500 flex-shrink-0" />
-                      {item.filename}
-                    </h4>
-                  </div>
-                  
-                  {/* Card Body with Facts or Error */}
-                  <div className="p-4">
-                    {hasErrorFact ? (
-                       <div className="flex items-center text-sm text-slate-500">
-                         <AlertCircle className="w-4 h-4 mr-2 text-orange-500 flex-shrink-0" />
-                         <p>{item.facts[0]}</p>
-                       </div>
-                    ) : (
-                      <ul className="space-y-2 text-sm">
-                        {item.facts.map((fact, fIndex) => (
-                          <FactListItem key={fIndex}>{fact}</FactListItem>
-                        ))}
-                      </ul>
-                    )}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+      <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+        {renderContent()}
       </div>
     </div>
   );

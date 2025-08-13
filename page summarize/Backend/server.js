@@ -29,7 +29,7 @@ app.post("/summarize-text", async (req, res) => {
   const { text } = req.body;
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const prompt = `Summarize this text clearly and concisely:\n\n${text}`;
 
     const result = await model.generateContent(prompt);
@@ -44,17 +44,16 @@ app.post("/summarize-text", async (req, res) => {
 
 
 app.post("/ask-pdf", upload.array('files'), async (req, res) => {
-  // Check if files and question are provided
   if (!req.files || req.files.length === 0 || !req.body.question) {
     return res.status(400).json({ error: "At least one file and a question are required." });
   }
 
-  const { question } = req.body;
+  // --- UPDATED: Get language from request body ---
+  const { question, language = 'English' } = req.body;
   const pdfFiles = req.files;
   let combinedText = "";
 
   try {
-    // 1. Extract text from all PDF buffers and combine them
     for (const file of pdfFiles) {
         const data = await pdf(file.buffer);
         combinedText += `--- START OF DOCUMENT: ${file.originalname} ---\n\n`;
@@ -66,12 +65,12 @@ app.post("/ask-pdf", upload.array('files'), async (req, res) => {
         return res.status(500).json({ error: "Could not extract text from the provided PDF(s)." });
     }
 
-    // 2. Use Gemini to answer the question based on the combined PDF text
+    // --- UPDATED: Model name corrected and prompt now includes language instruction ---
     const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     
     const prompt = `
-      You are an intelligent assistant. Please answer the following question based *only* on the content of the provided documents.
-      If the answer cannot be found within the documents, state that clearly. Be concise and helpful.
+      You are an intelligent assistant. Please answer the following question in the ${language} language, based *only* on the content of the provided documents.
+      If the answer cannot be found within the documents, state that clearly in ${language}. Be concise and helpful.
       When referencing information, mention which document it came from if possible. Only write the answer, do not include any additional text.
       Write in a markdown format with bold sub headings and bullet points if needed.
 
@@ -87,7 +86,6 @@ app.post("/ask-pdf", upload.array('files'), async (req, res) => {
     const result = await model.generateContent(prompt);
     const answer = result.response.text();
 
-    // 3. Send the answer back to the client
     res.json({ answer });
 
   } catch (err) {
@@ -103,7 +101,7 @@ app.post("/ask", async (req, res) => {
   const { text, question } = req.body;
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Corrected model name
     const prompt = `
 You are a helpful assistant. Answer the following question using the provided page content breifly.
 If the answer is not in the content, say "I couldn't find that in this page."
@@ -124,8 +122,6 @@ Question: ${question}
   }
 });
 
-// New route to handle podcast generation
-
 
 const speechKey = process.env.AZURE_SPEECH_KEY;
 const speechRegion = process.env.AZURE_SPEECH_REGION;
@@ -135,8 +131,10 @@ app.post('/generate-podcast', upload.array('files'), async (req, res) => {
     if (!req.files || req.files.length === 0) {
       return res.status(400).json({ error: 'No files were uploaded.' });
     }
+    
+    // --- UPDATED: Get language from request body ---
+    const { language = 'English' } = req.body;
 
-    // 1. Extract text from uploaded PDF files
     let combinedText = '';
     for (const file of req.files) {
       const data = await pdf(file.buffer);
@@ -147,20 +145,26 @@ app.post('/generate-podcast', upload.array('files'), async (req, res) => {
       return res.status(400).json({ error: 'Could not extract text from the provided files.' });
     }
 
-    // 2. Generate summary using Gemini (your existing logic)
+    // --- UPDATED: Prompt now includes language instruction ---
     const summaryPrompt = `
-      Summarize the following text into a concise version that can be read as a podcast in under 4 minutes.
+      Summarize the following text into a concise version that can be read as a podcast in the ${language} language, in under 4 minutes.
       Only write the summary; do not include any additional text.
       ${combinedText}
     `;
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Using 1.5 flash as it's often faster for this
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
     const geminiResult = await model.generateContent(summaryPrompt);
     const summary = geminiResult.response.text().trim();
     console.log("Generated summary:", summary);
 
-    // 3. Convert summary to audio using Azure Speech SDK (your existing logic)
+    // --- UPDATED: Selects voice based on language ---
+    const voiceMap = {
+        'English': 'en-US-AriaNeural',
+        'Bengali': 'bn-IN-TanishaaNeural',
+        'Hindi': 'hi-IN-SwaraNeural'
+    };
+
     const speechConfig = sdk.SpeechConfig.fromSubscription(speechKey, speechRegion);
-    speechConfig.speechSynthesisVoiceName = "en-US-AriaNeural";
+    speechConfig.speechSynthesisVoiceName = voiceMap[language] || 'en-US-AriaNeural';
     speechConfig.speechSynthesisOutputFormat = sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3;
 
     const synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
@@ -189,26 +193,23 @@ app.post('/generate-podcast', upload.array('files'), async (req, res) => {
     );
 
   } catch (error) {
-    console.error("Server error in /generate-podcast-from-files:", error);
+    console.error("Server error in /generate-podcast:", error);
     res.status(500).json({ error: error.message });
   }
 });
 
 
-// *** MODIFIED /facts ENDPOINT ***
 app.post("/facts", upload.array('files'), async (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ error: "At least one file is required." });
   }
 
   try {
-    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" }); // Corrected model name
     const allFacts = [];
 
-    // Process files one by one to avoid overwhelming the API
     for (const file of req.files) {
       try {
-        // Use pdf-parse on the server to extract text from the file buffer
         const data = await pdf(file.buffer);
         const text = data.text;
 
@@ -217,7 +218,7 @@ app.post("/facts", upload.array('files'), async (req, res) => {
             filename: file.originalname,
             facts: ["This document does not contain enough text to extract facts."],
           });
-          continue; // Skip to the next file
+          continue; 
         }
 
         const textSample = text.substring(0, 8000);

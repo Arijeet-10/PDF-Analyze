@@ -1,7 +1,111 @@
 import React, { useState, useEffect } from 'react';
-import { X, Loader2, FileText, Sparkles, AlertCircle, Lightbulb } from 'lucide-react';
+import { X, Loader2, FileText, Sparkles, AlertCircle, Lightbulb, Brain, Zap, Search } from 'lucide-react';
 
-// A dedicated component for displaying different states (loading, error, empty)
+// Modern loading animation component
+const ModernLoadingAnimation = () => {
+  const [currentStep, setCurrentStep] = useState(0);
+  
+  const steps = [
+    { icon: Search, text: "Scanning documents", color: "text-blue-500" },
+    { icon: Brain, text: "Processing content", color: "text-purple-500" },
+    { icon: Zap, text: "Extracting insights", color: "text-emerald-500" },
+    { icon: Sparkles, text: "Finalizing facts", color: "text-amber-500" }
+  ];
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentStep((prev) => (prev + 1) % steps.length);
+    }, 1500);
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full text-center p-8">
+      {/* Main animation container */}
+      <div className="relative mb-8">
+        {/* Outer rotating ring */}
+        <div className="w-24 h-24 rounded-full border-4 border-gray-200 relative">
+          <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-blue-500 animate-spin"></div>
+        </div>
+        
+        {/* Inner pulsing circle */}
+        <div className="absolute inset-0 flex items-center justify-center">
+          <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center animate-pulse">
+            {React.createElement(steps[currentStep].icon, {
+              className: `w-8 h-8 text-white transition-all duration-300 ${steps[currentStep].color}`
+            })}
+          </div>
+        </div>
+        
+        {/* Floating particles */}
+        <div className="absolute -inset-4">
+          {[...Array(8)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-2 h-2 bg-blue-400 rounded-full opacity-60"
+              style={{
+                left: `${50 + 40 * Math.cos(i * Math.PI / 4)}%`,
+                top: `${50 + 40 * Math.sin(i * Math.PI / 4)}%`,
+                animation: `float ${2 + i * 0.1}s ease-in-out infinite alternate`,
+                animationDelay: `${i * 0.2}s`
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Progress indicator */}
+      <div className="w-64 h-1 bg-gray-200 rounded-full overflow-hidden mb-6">
+        <div 
+          className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-emerald-500 rounded-full transition-all duration-1500 ease-out"
+          style={{ 
+            width: `${((currentStep + 1) / steps.length) * 100}%`,
+            transform: 'translateX(-100%)',
+            animation: 'slideIn 1.5s ease-out forwards'
+          }}
+        />
+      </div>
+
+      {/* Current step text */}
+      <div className="space-y-3">
+        <h4 className="text-xl font-bold bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent">
+          Analyzing Documents
+        </h4>
+        <div className="flex items-center justify-center gap-3">
+          {React.createElement(steps[currentStep].icon, {
+            className: `w-5 h-5 ${steps[currentStep].color} transition-all duration-300`
+          })}
+          <p className={`text-sm font-medium transition-all duration-300 ${steps[currentStep].color}`}>
+            {steps[currentStep].text}
+          </p>
+        </div>
+        <p className="text-xs text-gray-400 animate-pulse">
+          This may take a few moments...
+        </p>
+      </div>
+
+      {/* Custom CSS for animations */}
+      <style jsx>{`
+        @keyframes float {
+          from { transform: translateY(0px) scale(1); opacity: 0.6; }
+          to { transform: translateY(-10px) scale(1.1); opacity: 0.9; }
+        }
+        
+        @keyframes slideIn {
+          from { transform: translateX(-100%); }
+          to { transform: translateX(0%); }
+        }
+        
+        @keyframes shimmer {
+          0% { background-position: -200px 0; }
+          100% { background-position: calc(200px + 100%) 0; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// A dedicated component for displaying different states (error, empty)
 const StatusDisplay = ({ icon: Icon, title, message }) => (
   <div className="flex flex-col items-center justify-center h-full text-center text-gray-500 p-8">
     <Icon className="w-12 h-12 mb-4 text-gray-400" />
@@ -54,7 +158,6 @@ const FactCard = ({ filename, facts }) => {
     );
 };
 
-
 export default function FactsWindow({ isOpen, onClose, files }) {
   const [facts, setFacts] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -100,13 +203,7 @@ export default function FactsWindow({ isOpen, onClose, files }) {
 
   const renderContent = () => {
     if (loading) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full text-gray-600">
-          <Loader2 className="w-10 h-10 mb-4 text-blue-500 animate-spin" />
-          <p className="text-lg font-medium">Analyzing Documents...</p>
-          <p className="text-sm text-gray-400">Extracting key information, please wait.</p>
-        </div>
-      );
+      return <ModernLoadingAnimation />;
     }
 
     if (error) {

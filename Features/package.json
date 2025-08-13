@@ -26,6 +26,7 @@
     "pdf-parse": "^1.1.1"
   },
   "devDependencies": {
-    "patch-package": "^8.0.0"
+    "patch-package": "^8.0.0",
+    "postinstall-postinstall": "^2.1.0"
   }
 }

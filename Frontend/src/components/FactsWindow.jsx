@@ -175,7 +175,8 @@ export default function FactsWindow({ isOpen, onClose, files }) {
         files.forEach(file => formData.append('files', file));
 
         try {
-          const res = await fetch('http://localhost:5000/facts', {
+          // const res = await fetch('http://localhost:5000/facts', {
+          const res = await fetch('https://pdf-analyze-features-backend.onrender.com/facts', {
             method: 'POST',
             body: formData,
           });

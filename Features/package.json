@@ -6,7 +6,7 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js",
-    "postinstall": "patch-package"
+    "postinstall": "npx patch-package"
   },
   "keywords": [],
   "author": "",
@@ -23,7 +23,9 @@
     "multer": "^2.0.2",
     "node-fetch": "^3.3.2",
     "openai": "^5.12.2",
-    "pdf-parse": "^1.1.1"
+    "pdf-parse": "^1.1.1",
+    "patch-package": "^8.0.0",
+    "postinstall-postinstall": "^2.1.0"
   },
   "devDependencies": {
     "patch-package": "^8.0.0",

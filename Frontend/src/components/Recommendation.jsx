@@ -136,7 +136,8 @@ const Recommendation = () => {
       formData.append('job', task);
       uploadedFiles.forEach(file => formData.append('files', file));
 
-      const response = await fetch('http://localhost:8000/semantic/process-pdfs', {
+      // const response = await fetch('http://localhost:7860/semantic/process-pdfs', {
+      const response = await fetch('https://arijeey-10-pdf-analyze-backend.hf.space/semantic/process-pdfs', {
         method: 'POST',
         body: formData,
       });

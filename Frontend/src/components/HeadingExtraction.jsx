@@ -273,7 +273,8 @@ const HeadingExtraction = () => {
       setIsLoading(true);
       setMessage("Processing your documents... This may take a moment.");
 
-      const response = await fetch("http://localhost:8000/api/pdf-outline", {
+      // const response = await fetch("http://localhost:7860/api/pdf-outline", {
+      const response = await fetch("https://arijeey-10-pdf-analyze-backend.hf.space/api/pdf-outline", {
         method: "POST",
         body: formData,
       });

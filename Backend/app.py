@@ -28,6 +28,13 @@ app.include_router(semantic_analyzer_router, prefix="/semantic", tags=["Semantic
 async def root():
     return {"message": "Unified FastAPI backend is running"}
 
+if __name__ == "__main__":
+    import uvicorn
+    import os
+
+    port = int(os.environ.get("PORT", 7860))  # Hugging Face default
+    uvicorn.run("app:app", host="0.0.0.0", port=port)
+
 
 
 

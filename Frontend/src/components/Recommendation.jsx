@@ -1,44 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Upload, FileText, Clock, Eye, MapPin, X, Plus, BrainCircuit, MessageCircle, ArrowLeft } from 'lucide-react';
+import FloatingChatbot from './FloatingChatbot';
 
-// A professional, modern UI for the Semantic PDF Recommendation Engine on a single page
-
-// --- PLACEHOLDER CHATBOT COMPONENT ---
-// To make this component self-contained, a placeholder for the FloatingChatbot is included here.
-// In a real application, you would import this from its own file.
-const FloatingChatbot = ({ isOpen, onClose, files }) => {
-  if (!isOpen) {
-    return null;
-  }
-
-  return (
-    <div className="fixed bottom-6 right-6 w-96 h-[60vh] bg-white rounded-xl shadow-2xl border border-slate-200 flex flex-col z-50">
-      <header className="p-4 border-b border-slate-200 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-            <MessageCircle className="w-6 h-6 text-indigo-600" />
-            <h3 className="text-lg font-semibold text-slate-800">Document Chat</h3>
-        </div>
-        <button onClick={onClose} className="p-1 rounded-full hover:bg-slate-200 text-slate-500 hover:text-slate-800">
-          <X className="w-5 h-5" />
-        </button>
-      </header>
-      <div className="flex-1 p-4 overflow-y-auto">
-        <div className="text-center text-slate-500">
-          <p className="font-semibold">Chatbot UI</p>
-          <p className="text-sm">This is a placeholder. The real chatbot logic would go here.</p>
-          <p className="text-sm mt-4"><strong>{files.length}</strong> file(s) are available for chat.</p>
-        </div>
-      </div>
-      <footer className="p-4 border-t border-slate-200">
-        <input 
-          type="text" 
-          placeholder="Ask a question about your documents..."
-          className="w-full px-3 py-2 border border-slate-300 rounded-lg"
-        />
-      </footer>
-    </div>
-  );
-};
 
 
 const Recommendation = () => {
@@ -52,6 +15,7 @@ const Recommendation = () => {
   const [selectedPdf, setSelectedPdf] = useState({ file: null, targetPage: 1 });
   const [isAdobeLoaded, setIsAdobeLoaded] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+  const [files, setFiles] = useState([]);
 
   const pdfViewerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -392,14 +356,12 @@ const Recommendation = () => {
                 </div>
             </div>
         )}
-      </div>
-      
-      {/* --- FLOATING CHATBOT --- */}
-      {uploadedFiles.length > 0 && !isChatbotOpen && (
+
+        {uploadedFiles.length > 0 && !isChatbotOpen && (
         <button
           onClick={() => setIsChatbotOpen(true)}
-          className="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-indigo-700 transition-all z-40"
-          aria-label="Open Chatbot"
+          className="fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 text-white rounded-full flex items-center justify-center shadow-xl hover:bg-indigo-700 transition-all z-40 transform hover:scale-110"
+          aria-label="Open Chat"
         >
           <MessageCircle className="w-8 h-8" />
         </button>
@@ -409,7 +371,12 @@ const Recommendation = () => {
         isOpen={isChatbotOpen} 
         onClose={() => setIsChatbotOpen(false)} 
       />
+      
+      
+      {/* --- FLOATING CHATBOT --- */}
+      
     </div>
+  </div>
   );
 };
 

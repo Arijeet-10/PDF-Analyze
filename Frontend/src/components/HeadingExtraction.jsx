@@ -2,11 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import {
   Upload,
   FileText,
-  ChevronRight,
   AlertCircle,
   CheckCircle,
   Loader2,
-  Eye,
   ExternalLink,
   ArrowLeft,
   ChevronDown,
@@ -21,8 +19,7 @@ import {
 } from "lucide-react";
 import FloatingChatbot from "./FloatingChatbot"; // Make sure path is correct
 
-
-// A professional, modern UI for the PDF Document Analyzer
+// A professional, modern UI for the PDF Document Analyzer on a single page
 const HeadingExtraction = () => {
   // --- STATE AND REFS ---
   const [files, setFiles] = useState([]);
@@ -32,7 +29,6 @@ const HeadingExtraction = () => {
   const [dragActive, setDragActive] = useState(false);
   const [pdfUrls, setPdfUrls] = useState({});
   const [selectedPdf, setSelectedPdf] = useState(null);
-  const [currentPage, setCurrentPage] = useState("upload");
   const [expandedDocs, setExpandedDocs] = useState({});
   const [isAdobeLoaded, setIsAdobeLoaded] = useState(false);
   const [highlightAnnotationId, setHighlightAnnotationId] = useState(null);
@@ -42,8 +38,8 @@ const HeadingExtraction = () => {
   const fileInputRef = useRef(null);
   const adobeApiRef = useRef(null);
 
-  // const ADOBE_CLIENT_ID = import.meta.env.VITE_ADOBE_CLIENT_ID_LH; // For local host
   const ADOBE_CLIENT_ID = import.meta.env.VITE_ADOBE_CLIENT_ID_PROD; // For production
+  // const ADOBE_CLIENT_ID = import.meta.env.VITE_ADOBE_CLIENT_ID_LH // For development
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -142,7 +138,6 @@ const HeadingExtraction = () => {
 
     const updatedFiles = [...files, ...uniqueNewFiles];
     setFiles(updatedFiles);
-    // Dispatch event to notify other components (like Header) about the file update
     window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: updatedFiles } }));
 
     const newUrls = {};
@@ -157,26 +152,36 @@ const HeadingExtraction = () => {
   const handleFileChange = (e) => {
     if (e.target.files) {
       addFilesToList(Array.from(e.target.files));
-      e.target.value = null; // Reset input to allow re-uploading the same file
+      e.target.value = null;
     }
   };
 
   const handleRemoveFile = (fileNameToRemove) => {
+    // Revoke URL and remove from state
     const urlToRevoke = pdfUrls[fileNameToRemove];
     if (urlToRevoke) {
       URL.revokeObjectURL(urlToRevoke);
     }
     
+    // Update files list
     const updatedFiles = files.filter((file) => file.name !== fileNameToRemove);
     setFiles(updatedFiles);
-    // Dispatch event to notify other components
     window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: updatedFiles } }));
 
+    // Update PDF URLs
     setPdfUrls((prevUrls) => {
       const newUrls = { ...prevUrls };
       delete newUrls[fileNameToRemove];
       return newUrls;
     });
+
+    // Remove the result associated with the file
+    setResults(prevResults => prevResults.filter(r => r.filename !== fileNameToRemove));
+    
+    // If the removed file was being viewed, close the viewer
+    if(selectedPdf?.file.name === fileNameToRemove) {
+      setSelectedPdf(null);
+    }
   };
 
   const handleHeadingClick = async (doc, heading) => {
@@ -188,7 +193,6 @@ const HeadingExtraction = () => {
   
     setSelectedPdf({ file, targetPage: heading.page + 1 });
   
-    // Delay highlight logic to ensure viewer is ready
     setTimeout(async () => {
       if (!adobeApiRef.current) {
         console.error("Adobe Viewer API is not available.");
@@ -198,13 +202,11 @@ const HeadingExtraction = () => {
       try {
         const apis = await adobeApiRef.current.getAPIs();
   
-        // Remove previous highlight if it exists
         if (highlightAnnotationId) {
           await apis.removeAnnotations([highlightAnnotationId]);
           setHighlightAnnotationId(null);
         }
   
-        // Search for the heading text to get its coordinates for highlighting
         const searchResults = await apis.search(heading.text);
         const resultOnPage = searchResults.find(r => r.page_num === heading.page + 1);
   
@@ -219,19 +221,17 @@ const HeadingExtraction = () => {
             },
           ]);
           setHighlightAnnotationId(newAnnotation.id);
-          // Go to the specific location of the highlighted text
           apis.gotoLocation(heading.page + 1, resultOnPage.quads[0][0], resultOnpage.quads[0][1]);
         } else {
           console.warn(`Could not find text "${heading.text}" on page ${heading.page + 1} to highlight.`);
-          apis.gotoLocation(heading.page + 1); // Go to the page anyway
+          apis.gotoLocation(heading.page + 1);
         }
       } catch (error) {
         console.error("Error during text highlighting:", error);
-        // Fallback to just going to the page if highlighting fails
         const apis = await adobeApiRef.current.getAPIs();
         apis.gotoLocation(heading.page + 1);
       }
-    }, 500); // A 500ms delay gives the viewer time to load/switch documents
+    }, 500);
   };
   
   const toggleExpand = (filename) => {
@@ -275,7 +275,6 @@ const HeadingExtraction = () => {
       setIsLoading(true);
       setMessage("Processing your documents... This may take a moment.");
 
-      // const response = await fetch("http://localhost:7860/api/pdf-outline", {
       const response = await fetch("https://arijeey-10-pdf-analyze-backend.hf.space/api/pdf-outline", {
         method: "POST",
         body: formData,
@@ -288,19 +287,27 @@ const HeadingExtraction = () => {
         );
       }
 
-      const data = await response.json();
-      setResults(data || []);
+      const newData = await response.json();
+      
+      // Merge new results with existing results
+      setResults(prevResults => {
+        const resultsMap = new Map(prevResults.map(r => [r.filename, r]));
+        (newData || []).forEach(newResult => {
+            resultsMap.set(newResult.filename, newResult);
+        });
+        return Array.from(resultsMap.values());
+      });
+
       setMessage("Extraction completed successfully!");
       setIsLoading(false);
 
       const initialExpandedState = {};
-      if (data) {
-        data.forEach((doc) => {
+      if (newData) {
+        newData.forEach((doc) => {
           initialExpandedState[doc.filename] = true;
         });
       }
-      setExpandedDocs(initialExpandedState);
-      setCurrentPage("results");
+      setExpandedDocs(prev => ({...prev, ...initialExpandedState}));
     } catch (error) {
       console.error("Upload error:", error);
       setMessage(`Failed to process documents: ${error.message}`);
@@ -314,7 +321,21 @@ const HeadingExtraction = () => {
       window.open(`${pdfUrl}#page=${page + 1}`, "_blank");
     }
   };
+  
+  const handleReset = () => {
+    setFiles([]);
+    setResults([]);
+    setSelectedPdf(null);
+    Object.values(pdfUrls).forEach((url) => URL.revokeObjectURL(url));
+    setPdfUrls({});
+    setMessage("");
+    setHighlightAnnotationId(null);
+    setIsChatbotOpen(false);
+    setExpandedDocs({});
+    window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: [] } }));
+  };
 
+  // --- UI HELPER FUNCTIONS ---
   const getIndentLevelClass = (levelStr) => {
     if (typeof levelStr !== 'string') return 'pl-0';
     const level = parseInt(levelStr.replace("H", ""), 10);
@@ -332,163 +353,116 @@ const HeadingExtraction = () => {
     }
   };
 
-  const goBackToUpload = () => {
-    setCurrentPage("upload");
-    setSelectedPdf(null);
-    setResults([]);
-    Object.values(pdfUrls).forEach((url) => URL.revokeObjectURL(url));
-    setFiles([]);
-    window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: [] } }));
-    setPdfUrls({});
-    setMessage("");
-    setHighlightAnnotationId(null);
-    setIsChatbotOpen(false);
-  };
-  
-  const clearAllFiles = () => {
-      Object.values(pdfUrls).forEach(url => URL.revokeObjectURL(url));
-      setFiles([]);
-      window.dispatchEvent(new CustomEvent('filesUpdated', { detail: { files: [] } }));
-      setPdfUrls({});
-      setMessage("");
-  }
-  
-  // --- UI RENDER METHODS ---
-
-  const UploadScreen = () => (
-    <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4 sm:p-6 lg:p-8">
-      <div className="w-full max-w-3xl">
-        <header className="text-center mb-10">
-          <div className="inline-flex items-center justify-center bg-indigo-100 text-indigo-600 rounded-xl p-3 mb-4">
-            <ListTree className="w-10 h-10" />
-          </div>
-          <h1 className="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900">
-            Document Outline Extractor
-          </h1>
-          <p className="mt-3 text-lg text-slate-600 max-w-xl mx-auto">
-            Instantly generate a clickable table of contents for any PDF document.
-          </p>
-        </header>
-
-        <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/60 border border-slate-200">
-          <div
-            className={`relative p-8 border-2 border-dashed rounded-t-2xl transition-all duration-300 ${
-              dragActive ? "border-indigo-500 bg-indigo-50" : "border-slate-300 hover:border-slate-400"
-            }`}
-            onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
-          >
-            <input
-              ref={fileInputRef} type="file" accept="application/pdf" multiple
-              onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            />
-            <div className="flex flex-col items-center pointer-events-none">
-              <FileUp className={`w-12 h-12 mb-4 transition-colors ${dragActive ? 'text-indigo-600' : 'text-slate-400'}`} />
-              <p className="text-lg font-semibold text-slate-700">
-                Drag & drop PDFs here, or{' '}
-                <span className="text-indigo-600 font-bold">browse your files</span>
-              </p>
-              <p className="text-sm text-slate-500 mt-1">Supports multiple PDF files.</p>
+  return (
+    <div className="flex flex-col min-h-screen bg-slate-50">
+      {/* --- UPLOAD SECTION --- */}
+      <div className="w-full bg-slate-50 p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-4xl mx-auto">
+          <header className="text-center mb-10">
+            <div className="inline-flex items-center justify-center bg-indigo-100 text-indigo-600 rounded-xl p-3 mb-4">
+              <ListTree className="w-10 h-10" />
             </div>
-          </div>
+            <h1 className="text-4xl lg:text-5xl font-bold tracking-tight text-slate-900">
+              Document Outline Extractor
+            </h1>
+            <p className="mt-3 text-lg text-slate-600 max-w-xl mx-auto">
+              Instantly generate a clickable table of contents for any PDF document.
+            </p>
+          </header>
 
-          {files.length > 0 && (
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-md font-semibold text-slate-800">
-                  Upload Queue ({files.length})
-                </h3>
-                <div className="flex items-center space-x-4">
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="flex items-center space-x-2 text-sm text-indigo-600 hover:text-indigo-800 font-semibold"
-                  >
-                    <PlusCircle className="w-4 h-4" />
-                    <span>Add More</span>
-                  </button>
-                  <button onClick={clearAllFiles} className="text-sm text-slate-500 hover:text-red-600 font-medium">
-                    Clear All
-                  </button>
-                </div>
+          <div className="bg-white rounded-2xl shadow-lg shadow-slate-200/60 border border-slate-200">
+            <div
+              className={`relative p-8 border-2 border-dashed rounded-t-2xl transition-all duration-300 ${
+                dragActive ? "border-indigo-500 bg-indigo-50" : "border-slate-300 hover:border-slate-400"
+              }`}
+              onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop}
+            >
+              <input
+                ref={fileInputRef} type="file" accept="application/pdf" multiple
+                onChange={handleFileChange} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              <div className="flex flex-col items-center pointer-events-none">
+                <FileUp className={`w-12 h-12 mb-4 transition-colors ${dragActive ? 'text-indigo-600' : 'text-slate-400'}`} />
+                <p className="text-lg font-semibold text-slate-700">
+                  Drag & drop PDFs here, or{' '}
+                  <span className="text-indigo-600 font-bold">browse your files</span>
+                </p>
+                <p className="text-sm text-slate-500 mt-1">Supports multiple PDF files.</p>
               </div>
-              <div className="space-y-3 max-h-64 overflow-y-auto pr-2 -mr-2">
-                {files.map((file) => (
-                  <div key={file.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200/80">
-                    <div className="flex items-center space-x-3 min-w-0">
-                      <FileText className="w-6 h-6 text-red-500 flex-shrink-0" />
-                      <div className="min-w-0">
-                        <p className="font-semibold text-slate-800 truncate text-sm">{file.name}</p>
-                        <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+            </div>
+
+            {files.length > 0 && (
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-md font-semibold text-slate-800">
+                    Document Queue ({files.length})
+                  </h3>
+                  <div className="flex items-center space-x-4">
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="flex items-center space-x-2 text-sm text-indigo-600 hover:text-indigo-800 font-semibold"
+                    >
+                      <PlusCircle className="w-4 h-4" />
+                      <span>Add More</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-3 max-h-64 overflow-y-auto pr-2 -mr-2">
+                  {files.map((file) => (
+                    <div key={file.name} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200/80">
+                      <div className="flex items-center space-x-3 min-w-0">
+                        <FileText className="w-6 h-6 text-red-500 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800 truncate text-sm">{file.name}</p>
+                          <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
+                        <button onClick={() => openPdfInNewTab(file.name)} className="p-1.5 text-slate-500 hover:text-indigo-600 transition-colors rounded-md hover:bg-slate-200" title="Preview PDF">
+                          <ExternalLink className="w-4 h-4" />
+                        </button>
+                        <button onClick={() => handleRemoveFile(file.name)} className="p-1.5 text-slate-500 hover:text-red-600 transition-colors rounded-md hover:bg-slate-200" title="Remove File">
+                          <X className="w-4 h-4" />
+                        </button>
                       </div>
                     </div>
-                    <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
-                      <button onClick={() => openPdfInNewTab(file.name)} className="p-1.5 text-slate-500 hover:text-indigo-600 transition-colors rounded-md hover:bg-slate-200" title="Preview PDF">
-                        <ExternalLink className="w-4 h-4" />
-                      </button>
-                      <button onClick={() => handleRemoveFile(file.name)} className="p-1.5 text-slate-500 hover:text-red-600 transition-colors rounded-md hover:bg-slate-200" title="Remove File">
-                        <X className="w-4 h-4" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="p-6 bg-slate-50/70 border-t border-slate-200 rounded-b-2xl">
-            {message && !isLoading && (
-              <div className={`mb-4 p-3 rounded-lg border flex items-start space-x-3 text-sm ${message.includes('Failed') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-green-50 border-green-200 text-green-800'}`}>
-                {message.includes('Failed') ? <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <CheckCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
-                <span className="leading-snug">{message}</span>
+                  ))}
+                </div>
               </div>
             )}
-             <button
-                onClick={handleUpload}
-                disabled={files.length === 0 || isLoading}
-                className="w-full h-12 px-6 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-3 text-base shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    <span>Analyzing...</span>
-                  </>
-                ) : (
-                  <>
-                    <FileCheck2 className="w-5 h-5" />
-                    <span>Generate Outlines</span>
-                  </>
-                )}
-              </button>
+
+            <div className="p-6 bg-slate-50/70 border-t border-slate-200 rounded-b-2xl">
+              {message && !isLoading && (
+                <div className={`mb-4 p-3 rounded-lg border flex items-start space-x-3 text-sm ${message.includes('Failed') ? 'bg-red-50 border-red-200 text-red-800' : 'bg-green-50 border-green-200 text-green-800'}`}>
+                  {message.includes('Failed') ? <AlertCircle className="w-5 h-5 mt-0.5 flex-shrink-0" /> : <CheckCircle className="w-5 h-5 mt-0.5 flex-shrink-0" />}
+                  <span className="leading-snug">{message}</span>
+                </div>
+              )}
+                 <button
+                    onClick={handleUpload}
+                    disabled={files.length === 0 || isLoading}
+                    className="w-full h-12 px-6 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 disabled:bg-slate-300 disabled:cursor-not-allowed transition-all duration-200 flex items-center justify-center space-x-3 text-base shadow-lg shadow-indigo-500/30 hover:shadow-xl hover:shadow-indigo-500/40"
+                  >
+                    {isLoading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin" />
+                        <span>Analyzing...</span>
+                      </>
+                    ) : (
+                      <>
+                        <FileCheck2 className="w-5 h-5" />
+                        <span>Generate Outlines</span>
+                      </>
+                    )}
+                  </button>
+            </div>
           </div>
         </div>
       </div>
-    </div>
-  );
-
-  const ResultsScreen = () => (
-    <div className="h-screen bg-slate-50 flex flex-col">
-       <header className="bg-white border-b border-slate-200 sticky top-0 z-30 flex-shrink-0">
-        <div className="max-w-full mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-            <div className="flex items-center space-x-3">
-              <div className="w-9 h-9 bg-indigo-600 rounded-lg flex items-center justify-center">
-                <ListTree className="w-5 h-5 text-white" />
-              </div>
-              <h1 className="text-xl font-semibold text-slate-900 hidden sm:block">
-                Analysis Results
-              </h1>
-            </div>
-            <button
-              onClick={goBackToUpload}
-              className="flex items-center space-x-2 px-4 py-2 text-sm text-slate-600 bg-slate-100 hover:bg-slate-200 font-semibold rounded-lg transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <span>Start Over</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0">
+      
+      {/* --- RESULTS SECTION (conditionally rendered) --- */}
+      {results.length > 0 && (
+        <main className="flex-1 flex flex-col lg:flex-row gap-4 p-4 min-h-0">
         {/* Left Panel: Document Outlines */}
         <aside className="w-full lg:w-1/2 flex-shrink-0 flex flex-col bg-gradient-to-br from-white via-slate-50/30 to-slate-100/20 rounded-2xl shadow-xl shadow-slate-900/5 border border-slate-200/60 backdrop-blur-sm overflow-hidden">
     <div className="p-6 border-b border-slate-200/70 flex-shrink-0 bg-gradient-to-r from-slate-50/80 to-white/90">
@@ -568,7 +542,8 @@ const HeadingExtraction = () => {
 </aside>
 
         {/* Right Panel: PDF Viewer */}
-        <section className="w-full lg:w-1/2 flex bg-white rounded-xl shadow-lg shadow-slate-200/60 border border-slate-200 flex-col overflow-hidden">
+        <section className="w-full lg:w-1/2 h-[calc(100vh-64px)] flex bg-white rounded-xl shadow-lg shadow-slate-200/60 border border-slate-200 flex-col overflow-hidden">
+
           {selectedPdf ? (
             <>
               <div className="p-3 border-b border-slate-200 flex items-center justify-between flex-shrink-0 bg-slate-50/50">
@@ -609,8 +584,9 @@ const HeadingExtraction = () => {
           )}
         </section>
       </main>
-      
-      {/* Floating Chatbot */}
+      )}
+
+      {/* --- FLOATING CHATBOT --- */}
       {files.length > 0 && !isChatbotOpen && (
         <button
           onClick={() => setIsChatbotOpen(true)}
@@ -627,8 +603,6 @@ const HeadingExtraction = () => {
       />
     </div>
   );
-
-  return currentPage === "upload" ? <UploadScreen /> : <ResultsScreen />;
 };
 
 export default HeadingExtraction;

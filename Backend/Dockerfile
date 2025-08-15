@@ -1,21 +1,16 @@
-FROM python:3.10-slim
+# Backend/Dockerfile
+FROM python:3.11-slim
 
 WORKDIR /app
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install Python dependencies
-COPY requirements.txt .
+# Install dependencies
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy the app
+# Copy the application code
 COPY . .
 
-# Hugging Face Spaces expects this port
-ENV PORT 7860
+EXPOSE 7860
 
-# Start FastAPI app
-CMD ["python", "app.py"]
+# Command to run the Uvicorn server
+CMD ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "7860"]

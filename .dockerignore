@@ -1,0 +1,29 @@
+# .dockerignore
+
+# Git
+.git
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Node.js
+node_modules
+npm-debug.log
+/Frontend/dist
+/Frontend/node_modules
+/Features/node_modules
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+.venv
+venv
+env
+
+# IDE & OS files
+.vscode
+.idea
+*.DS_Store

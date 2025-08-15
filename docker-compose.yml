@@ -1,0 +1,30 @@
+
+services:
+  # React Frontend Service
+  frontend:
+    build:
+      context: ./Frontend
+      dockerfile: Dockerfile
+    ports:
+      - "5173:80" # Access via http://localhost:5173
+    restart: always
+
+  # Node.js Backend Service
+  nodejs-backend:
+    build:
+      context: ./Features
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000" # Access via http://localhost:5000
+    env_file:
+      - ./Features/.env # Load environment variables
+    restart: always
+
+  # Python FastAPI Backend Service
+  python-backend:
+    build:
+      context: ./Backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:7860" # Access via http://localhost:8000
+    restart: always

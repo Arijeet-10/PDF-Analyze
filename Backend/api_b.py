@@ -123,6 +123,79 @@ def extract_sections(pdf_path, max_pages=30):
     doc.close()
     return [s for s in sections if len(s["section_text"]) > 70]
 
+def find_similar_chunks(pdf_paths: List[str], query_text: str) -> Dict[str, Any]:
+    query_embedding = model.encode([query_text], convert_to_tensor=True)
+
+    chunk_records = []
+    for doc_path in pdf_paths:
+        for sec in extract_sections(doc_path, max_pages=30):
+            chunks = smart_sentence_chunks(sec['section_text'], window=CHUNK_SENT_WINDOW)
+            for chunk in chunks:
+                chunk_records.append({
+                    "document": os.path.basename(doc_path),
+                    "page_number": sec["page_number"],
+                    "chunk_text": clean_text(chunk, 650),
+                })
+    
+    if not chunk_records:
+        return {"snippets": []}
+
+    batch_chunk_texts = [rec["chunk_text"] for rec in chunk_records]
+    chunk_embeddings = model.encode(batch_chunk_texts, convert_to_tensor=True)
+    
+    sims = util.cos_sim(query_embedding, chunk_embeddings)[0].tolist()
+    for i, sim in enumerate(sims):
+        chunk_records[i]["similarity"] = round(sim, 4)
+
+    top_chunks = sorted(chunk_records, key=lambda x: x["similarity"], reverse=True)[:N_TOP_SECTIONS]
+
+    snippets = [
+        {
+            "document": chunk["document"],
+            "page_number": chunk["page_number"],
+            "text": chunk["chunk_text"]
+        } for chunk in top_chunks if chunk["similarity"] > 0.3 # Add a relevance threshold
+    ]
+
+    return {"snippets": snippets}
+
+@router.post("/find-similar-snippets")
+async def find_similar_snippets_api(
+    query_text: str = Form(...),
+    current_document_name: str = Form(...),
+    files: List[UploadFile] = File(...)
+):
+    try:
+        if not query_text.strip():
+            raise HTTPException(status_code=400, detail="Query text cannot be empty")
+        
+        if not files:
+            return {"success": True, "data": {"snippets": []}}
+
+        pdf_paths = []
+        with tempfile.TemporaryDirectory() as temp_dir:
+            for file in files:
+                if allowed_file(file.filename):
+                    filename = secure_filename(file.filename)
+                    file_path = os.path.join(temp_dir, filename)
+                    with open(file_path, "wb") as f:
+                        shutil.copyfileobj(file.file, f)
+                    pdf_paths.append(file_path)
+                else:
+                    continue # Silently ignore non-PDF files
+            
+            if not pdf_paths:
+                raise HTTPException(status_code=400, detail="No valid PDF files provided for search.")
+
+            result = find_similar_chunks(pdf_paths, query_text)
+            
+            return {"success": True, "data": result}
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Snippet search failed: {str(e)}")
+
+
+
 def process_pdfs(pdf_paths: List[str], persona: str, job: str) -> Dict[str, Any]:
     query = f"{persona}. Task: {job}"
     query_embedding = model.encode([query], convert_to_tensor=True)

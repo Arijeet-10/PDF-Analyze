@@ -7,6 +7,7 @@ import Home from "./components/Home";
 import Service from './components/Service';
 import Header from "./components/Header";
 import PageSummarizer from "./components/PageSummarizer";
+import Pdfview from "./components/Pdfview";
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <Route path="/" element={<Home />} />
         <Route path="/service" element={<Service />} />
         <Route path="/page-summarizer" element={<PageSummarizer />} />
+        <Route path="/pdf" element={<Pdfview />} />
       </Routes>
     </Router>
   );
